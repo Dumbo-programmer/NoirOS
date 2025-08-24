@@ -23,13 +23,13 @@ NoirOS is a lightweight hobby operating system
 
 Below are screenshots showcasing NoirOS in action:
 
-![NoirOS Desktop](images/image.png)
+![NoirOS Desktop](Images/image.png)
 
-![File Manager](images/image2.png)
+![File Manager](Images/image2.png)
 
-![Terminal Emulator](images/image3.png)
+![Terminal Emulator](Images/image3.png)
 
-![Settings Panel](images/image4.png)
+![Settings Panel](Images/image4.png)
 
 ## Getting Started
 
