@@ -1,0 +1,6 @@
+{
+    "files.associations": {
+        "mode.h": "c",
+        "game_snake.h": "c"
+    }
+}
