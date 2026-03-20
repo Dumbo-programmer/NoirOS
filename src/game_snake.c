@@ -32,6 +32,11 @@ void snake_init(void) {
 }
 
 void snake_update(void) {
+            // Snake game update loop: moves snake, checks collisions, handles food.
+            // Food position uses score-based pseudo-randomness for simplicity.
+            // If you lose, remember: the snake is just as scared of you.
+        // Snake game update loop: moves snake, checks collisions, handles food.
+        // Food position uses score-based pseudo-randomness for simplicity.
     if (snake_game.game_over) return;
 
     for (int i = snake_game.length - 1; i > 0; --i) {

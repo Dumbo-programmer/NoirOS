@@ -32,6 +32,11 @@ static int dir_is_empty(struct Dir* d) {
 
 /* -------- Init -------- */
 void init_filesystem(void) {
+            // Initialize root directory and preload sample files.
+            // Sets up in-memory file system tree for NoirOS.
+            // Warning: Filesystem is so fast, it might outrun your thoughts.
+        // Initialize root directory and preload sample files.
+        // Sets up in-memory file system tree for NoirOS.
     /* root dir */
     for (int i=0;i<MAX_DIRS_PER_DIR;i++) s_root.subdirs[i] = 0;
     s_root.subdir_count = 0;

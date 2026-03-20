@@ -18,6 +18,11 @@ static const int VIEW_W = 76; /* columns for editing region */
 static const int VIEW_H = 20; /* lines visible */
 
 static int get_line_start(int line) {
+    // Editor buffer management: converts 2D cursor to 1D buffer offset.
+    // Handles insertions, deletions, and scrolling for text editing.
+    // If you make a typo, just blame the keyboard. That's what we do.
+    // Editor buffer management: converts 2D cursor to 1D buffer offset.
+    // Handles insertions, deletions, and scrolling for text editing.
     int off = 0;
     int l = 0;
     while (l < line && off < editor_len) {

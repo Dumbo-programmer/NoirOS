@@ -8,139 +8,164 @@
 #include "../include/shell.h"
 #include "../include/editor.h"
 #include "../include/game_snake.h"
-#include "../include/mouse.h"
+
+/* forward declarations of game/editor functions */
+void snake_init(void);
+void snake_update(void);
+void snake_draw(void);
+void snake_handle_key(int key);
 
 enum { MODE_BROWSER = 0, MODE_EDITOR = 1, MODE_GAME = 2 };
 static int current_mode = MODE_BROWSER;
 
-/* Mouse cursor state */
-static char saved_char = ' ';
-static unsigned char saved_attr = 0x07;
-static int last_mouse_x = -1, last_mouse_y = -1;
-
-/* Simple mouse cursor management */
-static void update_mouse_cursor(void) {
-    mouse_state_t* mouse = get_mouse_state();
-    
-    /* Restore previous position */
-    if (last_mouse_x >= 0 && last_mouse_y >= 0) {
-        vga_putcell(last_mouse_x, last_mouse_y, saved_char, saved_attr);
-    }
-    
-    /* Save new position and draw cursor */
-    if (mouse->x >= 0 && mouse->x < 80 && mouse->y >= 0 && mouse->y < 25) {
-        saved_char = vga_getcell_char(mouse->x, mouse->y);
-        saved_attr = vga_getcell_attr(mouse->x, mouse->y);
-        
-        /* Different cursor styles per mode */
-        char cursor = (current_mode == MODE_BROWSER) ? '>' : 
-                     (current_mode == MODE_EDITOR) ? '|' : '+';
-        unsigned char color = (current_mode == MODE_GAME) ? 0x0C : 0x0F;
-        
-        vga_putcell(mouse->x, mouse->y, cursor, color);
-        last_mouse_x = mouse->x;
-        last_mouse_y = mouse->y;
-    }
-}
-
-/* Handle mouse clicks in different modes */
-static void handle_mouse_input(int *explorer_sel) {
-    mouse_state_t* mouse = get_mouse_state();
-    static unsigned char prev_buttons = 0;
-    
-    /* Left click - different behavior per mode */
-    if ((mouse->buttons & 1) && !(prev_buttons & 1)) {
-        if (current_mode == MODE_BROWSER && mouse->x < 40) {
-            /* Click in file list area */
-            int clicked_file = mouse->y - 2;
-            if (clicked_file >= 0 && clicked_file < fs_count()) {
-                *explorer_sel = clicked_file;
-                ui_set_selected(*explorer_sel);
-                ui_draw();
-            }
-        }
-        else if (current_mode == MODE_EDITOR) {
-            #ifdef EDITOR_MOUSE_SUPPORT
-            editor_set_cursor_pos(mouse->x, mouse->y);
-            editor_draw();
-            #endif
-        }
-        else if (current_mode == MODE_GAME) {
-            /* Convert mouse click to directional input */
-            int center_x = 40, center_y = 12;
-            int dx = mouse->x - center_x;
-            int dy = mouse->y - center_y;
-            
-            if (dx > 0 && dx > (dy < 0 ? -dy : dy)) snake_handle_key(K_ARROW_RIGHT);
-            else if (dx < 0 && -dx > (dy < 0 ? -dy : dy)) snake_handle_key(K_ARROW_LEFT);
-            else if (dy > 0) snake_handle_key(K_ARROW_DOWN);
-            else if (dy < 0) snake_handle_key(K_ARROW_UP);
-        }
-    }
-    
-    /* Right click - scroll or context actions */
-    if ((mouse->buttons & 2) && !(prev_buttons & 2)) {
-        if (current_mode == MODE_BROWSER && mouse->x >= 40) {
-            ui_scroll_viewer(mouse->y < 12 ? -1 : 1);
-            ui_draw();
-        }
-    }
-    
-    prev_buttons = mouse->buttons;
-}
-
 void kernel_main(void) {
+            // Main entry point for NoirOS kernel. Initializes filesystem and UI, then enters main loop.
+            // Handles mode switching, keyboard input, and command interface.
+            // If you see this, congrats! You're running an OS that fits in your head (and maybe your heart).
+        // Main entry point for NoirOS kernel. Initializes filesystem and UI, then enters main loop.
+        // Handles mode switching, keyboard input, and command interface.
     init_filesystem();
-    init_mouse();
     ui_draw();
 
     int explorer_sel = ui_get_selected();
     int game_timer = 0;
-    const int game_speed = 15;
+    const int game_speed = 15; /* Adjust for snake game speed */
 
     while (1) {
         int k = read_key();
-        
-        /* Update mouse cursor */
-        update_mouse_cursor();
-        
-        /* Handle mouse input */
-        handle_mouse_input(&explorer_sel);
 
-        /* Handle keyboard input by mode */
         if (current_mode == MODE_BROWSER) {
-            explorer_sel = shell_loop(explorer_sel, &current_mode);
-
-        } else if (current_mode == MODE_EDITOR) {
-            if (k == K_ESC) {
-                current_mode = MODE_BROWSER;
+            if (k == K_ARROW_UP || k == 'w' || k == 'W') {
+                explorer_sel = (explorer_sel > 0) ? explorer_sel - 1 : 0;
+                ui_set_selected(explorer_sel);
                 ui_draw();
-            } else if (k != 0) {
-                editor_handle_key(k, &current_mode);
-                if (current_mode == MODE_BROWSER) {
-                    ui_draw();
-                } else {
-                    editor_draw();
-                }
-            }
-
-        } else if (current_mode == MODE_GAME) {
-            if (k == K_ESC) { 
-                current_mode = MODE_BROWSER; 
+            } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
+                int total = fs_dir_count() + fs_count();
+                int max = total - 1;
+                if (max < 0) max = 0;
+                if (explorer_sel < max) explorer_sel++;
+                ui_set_selected(explorer_sel);
+                ui_draw();
+            } else if (k == K_F1) {
+                show_restart_screen();
+            } else if (k == K_F2) {
+                show_shutdown_screen();
+            } else if (k == K_F3) {
+                show_sleep_screen();
+            } else if (k == K_PAGE_UP) { 
+                ui_scroll_viewer(-3); 
                 ui_draw(); 
-                continue; 
-            }
-            if (k != 0) snake_handle_key(k);
+            } else if (k == K_PAGE_DOWN) { 
+                ui_scroll_viewer(3); 
+                ui_draw(); 
+            } else if (k == '\n' || k == '\r') {
+                /* Command input mode */
+                const int sy = 23; /* Status line */
+                const int sx = 1;
+                
+                /* Clear command area */
+                for (int x = sx; x < 78; ++x) {
+                    vga_putcell(x, sy, ' ', 0x07);
+                }
+                
+                /* Show prompt */
+                const char* prompt = "cmd> ";
+                for (int i = 0; prompt[i]; ++i) {
+                    vga_putcell(sx + i, sy, prompt[i], 0x0E);
+                }
+                
+                int cx = sx + 5;
+                int explorer_sel = ui_get_selected();
+                int game_timer = 0;
+                const int game_speed = 15;
 
-            game_timer++;
-            if (game_timer >= game_speed) { 
-                snake_update(); 
-                snake_draw(); 
-                game_timer = 0; 
+                while (1) {
+                    int k = read_key();
+
+                    if (current_mode == MODE_BROWSER) {
+                        if (k == K_ARROW_UP || k == 'w' || k == 'W') {
+                            explorer_sel = (explorer_sel > 0) ? explorer_sel - 1 : 0;
+                            ui_set_selected(explorer_sel);
+                            ui_draw();
+                        } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
+                            int total = fs_dir_count() + fs_count();
+                            int max = total - 1;
+                            if (max < 0) max = 0;
+                            if (explorer_sel < max) explorer_sel++;
+                            ui_set_selected(explorer_sel);
+                            ui_draw();
+                        } else if (k == K_F1) {
+                            show_restart_screen();
+                        } else if (k == K_F2) {
+                            show_shutdown_screen();
+                        } else if (k == K_F3) {
+                            show_sleep_screen();
+                        } else if (k == K_PAGE_UP) {
+                            ui_scroll_viewer(-3);
+                            ui_draw();
+                        } else if (k == K_PAGE_DOWN) {
+                            ui_scroll_viewer(3);
+                            ui_draw();
+                        } else if (k == '\n' || k == '\r') {
+                            explorer_sel = handle_command_input(explorer_sel, &current_mode);
+                        }
+                    }
+                    // ...existing code...
+            int handle_command_input(int explorer_sel, int* current_mode) {
+                const int sy = 23;
+                const int sx = 1;
+                for (int x = sx; x < 78; ++x) vga_putcell(x, sy, ' ', 0x07);
+                const char* prompt = "cmd> ";
+                for (int i = 0; prompt[i]; ++i) vga_putcell(sx + i, sy, prompt[i], 0x0E);
+                int cx = sx + 5;
+                char input[64];
+                int ipos = 0;
+                while (1) {
+                    int ch = read_key();
+                    if (ch == '\n' || ch == '\r') { input[ipos] = 0; break; }
+                    if (ch == K_ESC) { ui_draw(); return explorer_sel; }
+                    if (ch == '\b') {
+                        if (ipos > 0) { ipos--; cx--; vga_putcell(cx, sy, ' ', 0x07); }
+                        continue;
+                    }
+                    if (ipos < 63 && ch >= 32 && ch <= 126) {
+                        input[ipos++] = (char)ch;
+                        vga_putcell(cx++, sy, (char)ch, 0x0F);
+                    }
+                }
+                if (input[0]) {
+                    if (kstrcmp(input, "help") == 0) {
+                        for (int i = 0; i < fs_count(); ++i) {
+                            if (kstrcmp(fs_get(i)->name, "help.txt") == 0) {
+                                ui_set_selected(i);
+                                explorer_sel = i;
+                                break;
+                            }
+                        }
+                    } else if (kstrcmp(input, "snake") == 0) {
+                        *current_mode = MODE_GAME;
+                        snake_init();
+                        snake_draw();
+                    } else if (kstrcmp(input, "ls") == 0 || kstrcmp(input, "dir") == 0) {
+                        ui_draw();
+                    } else if (kstrncmp(input, "edit ", 5) == 0) {
+                        const char* fname = input + 5;
+                        int idx = -1;
+                        for (int i = 0; i < fs_count(); ++i) {
+                            if (kstrcmp(fs_get(i)->name, fname) == 0) { idx = i; break; }
+                        }
+                        if (idx >= 0) {
+                            *current_mode = MODE_EDITOR;
+                            editor_open(fs_get(idx));
+                        }
+                    }
+                }
+                return explorer_sel;
+            }
             }
         }
 
-        /* Small delay */
+        /* Smaller delay to make input more responsive */
         for (volatile int i = 0; i < 10000; ++i) { 
             asm volatile("nop"); 
         }

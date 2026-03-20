@@ -37,7 +37,7 @@ Below are screenshots showcasing NoirOS in action:
     ```bash
     git clone https://github.com/Dumbo-programmer/NoirOS.git
     ```
-2. get wsl and install the dependences and do `make`  && `make run`
+2. Read BUILD.md
 
 ## Contributing
 

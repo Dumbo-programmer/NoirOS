@@ -9,4 +9,8 @@ void term_write(const char* s);
 void draw_box(int x, int y, int w, int h, const char* title, u8 title_attr, u8 border_attr, u8 bg_attr);
 void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* text, u8 attr);
 
+/* Get character/attribute at screen position */
+char vga_getcell_char(int x, int y);
+unsigned char vga_getcell_attr(int x, int y);
+
 #endif

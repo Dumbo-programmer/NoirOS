@@ -8,10 +8,35 @@ typedef struct {
     const char* title;
 } Window;
 
+/* Button structure for clickable elements */
+typedef struct {
+    int x, y, w, h;           /* Position and size */
+    const char* text;         /* Button text */
+    unsigned char normal_attr; /* Normal color */
+    unsigned char pressed_attr; /* Pressed color */
+    int pressed;              /* Pressed state */
+    void (*callback)(void);   /* Click callback */
+} Button;
+
 void ui_draw(void);
 void ui_set_selected(int sel);
 int ui_get_selected(void);
 void ui_scroll_viewer(int delta);
-void ui_clear(void);   // this
+void ui_clear(void);
+int ui_selected_file_index(void);
+
+/* Button callback setters */
+void ui_set_restart_callback(void (*cb)(void));
+void ui_set_shutdown_callback(void (*cb)(void));
+void ui_set_sleep_callback(void (*cb)(void));
+
+/* Key and mouse handling */
+void ui_handle_key(int key);
+void ui_handle_mouse_click(int x, int y, int button);
+
+/* Power screen functions */
+void show_restart_screen(void);
+void show_shutdown_screen(void);
+void show_sleep_screen(void);
 
 #endif

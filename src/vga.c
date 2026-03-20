@@ -7,6 +7,11 @@ static int cursor_x = 0, cursor_y = 0;
 static u8 default_attr = 0x07;
 
 void vga_putcell(int x, int y, char ch, u8 attr) {
+            // Write a character and attribute to VGA text buffer at (x, y).
+            // Each cell is 16 bits: lower 8 bits = ASCII char, upper 8 bits = color attribute.
+            // If you mess up the coordinates, your screen will look like abstract art.
+        // Write a character and attribute to VGA text buffer at (x, y).
+        // Each cell is 16 bits: lower 8 bits = ASCII char, upper 8 bits = color attribute.
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
     vga[y * WIDTH + x] = ((u16)attr << 8) | (u8)ch;
 }

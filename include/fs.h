@@ -65,7 +65,7 @@ int fs_dir_count(void);                      /* #subdirs in CWD */
 struct Dir* fs_dir_get(int idx);             /* idx < fs_dir_count() */
 struct Dir* fs_find_dir(const char* name);   /* in CWD */
 
-/* ---------- File ops in CWD (compat layer kept) ---------- */
+/* ---------- File ops in CWD  ---------- */
 int fs_count(void);                          /* files in CWD (kept for UI) */
 struct File* fs_get(int idx);                /* file by index in CWD */
 struct File* fs_find(const char* name);      /* file by name in CWD */
@@ -74,7 +74,7 @@ int fs_delete(const char* name);             /* delete file in CWD (not readonly
 int fs_write(const char* name, const char* data);
 int fs_append(const char* name, const char* data);
 
-/* ---------- Optional helpers ---------- */
+/* ----------  helpers ---------- */
 void fs_list_counts(int* out_dirs, int* out_files);  /* both counts for UI */
 
 #endif 

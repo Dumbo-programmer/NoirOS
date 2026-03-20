@@ -8,7 +8,8 @@ static inline u8 inb(u16 port) {
 }
 
  u8 kb_read_scancode(void) {
-    while (!(inb(0x64) & 1)) { /* spin */ }
+    /* Wait for a key to be available - BLOCKING VERSION */
+    while (!(inb(0x64) & 1));
     return inb(0x60);
 }
 
@@ -86,9 +87,6 @@ int read_key(void) {
             if (sc == 0x4D) return K_ARROW_RIGHT;
             if (sc == 0x49) return K_PAGE_UP;
             if (sc == 0x51) return K_PAGE_DOWN;
-            if (sc == 0x3B ) return K_F1;
-            if (sc == 0x3C ) return K_F2;
-            if (sc == 0x3D ) return K_F3;
             if (sc == 0x1D) { /* Right Ctrl press */
                 kb_state.ctrl_pressed = 1;
                 return 0;

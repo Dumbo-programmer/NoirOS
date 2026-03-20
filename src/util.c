@@ -1,6 +1,11 @@
 #include "../include/util.h"
 
 int kstrcmp(const char* a, const char* b) {
+    // Utility string functions: custom implementations for freestanding OS.
+    // kstrncpy always NUL-terminates, unlike standard strncpy.
+    // If you get a string bug, just tell people it's a feature.
+    // Utility string functions: custom implementations for freestanding OS.
+    // kstrncpy always NUL-terminates, unlike standard strncpy.
     while (*a && *b && *a == *b) { a++; b++; }
     return (int)(*(unsigned char*)a) - (int)(*(unsigned char*)b);
 }

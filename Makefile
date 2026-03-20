@@ -59,4 +59,12 @@ run: $(ISO)
 	qemu-system-i386 -cdrom $(ISO) -m 512
 
 clean:
+ifeq ($(OS),Windows_NT)
+	if exist $(OBJ) rmdir /s /q $(OBJ)
+	if exist $(KERNEL_ELF) del /q $(KERNEL_ELF)
+	if exist $(KERNEL_BIN) del /q $(KERNEL_BIN)
+	if exist $(ISO) del /q $(ISO)
+	if exist $(ISO_DIR) rmdir /s /q $(ISO_DIR)
+else
 	rm -rf $(OBJ) $(KERNEL_ELF) $(KERNEL_BIN) $(ISO) $(ISO_DIR)
+endif

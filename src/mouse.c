@@ -1,4 +1,4 @@
-#include "mouse.h"
+#include "../include/mouse.h"
 
 static mouse_state_t mouse = {0};
 static unsigned char mouse_packet[3];
