@@ -5,6 +5,10 @@ title: NoirOS
 
 # NoirOS
 
+> "An idiot admires complexity, a genius admires simplicity"
+>
+> "But I'm an idiot who admires simplicity"
+
 NoirOS is a simple, educational operating system project. It is designed to help users understand the basics of OS development, including bootloading, kernel design, and basic user applications.
 
 ## Features
