@@ -5,15 +5,12 @@
 #include "../include/input.h"
 
 static Window explorer_win = {0, 1, 32, 20, " Explorer "};
-// UI window layout: explorer, viewer, controls, status bar.
-// Coordinates are screen-space, hardcoded for 80x25 VGA.
-// If you want more pixels, try squinting.
-// UI window layout: explorer, viewer, controls, status bar.
-// Coordinates are screen-space, hardcoded for 80x25 VGA.
-/* viewer shrunk so controls window fits under it */
+/* UI window layout: explorer | viewer + controls | status bar.
+ * All coordinates are in 80x25 VGA text-mode screen space. */
+/* viewer is shrunk so the controls window fits below it */
 static Window viewer_win   = {33, 1, 46, 14, " Viewer "};
 static Window control_win  = {33, 15, 46, 6,  " Controls "};
-static Window status_win   = {0, 22, 80, 3,  " Status "};
+static Window status_win   = {0, 22, WIDTH, 3,  " Status "};
 
 static int explorer_sel = 0;
 static int viewer_scroll = 0;
@@ -416,325 +413,267 @@ void ui_clear(void) {
 }
 
 /* -------- Colorful Power Screens -------- */
+
+/* ---- Shared helper: draw a centered string on a given screen row ---- */
+/* All dialog coordinates are derived from WIDTH/HEIGHT so they remain correct
+ * if the screen dimensions ever change.  Bare literals like 40, 25, 20, 60
+ * have been replaced throughout. */
+
+/* Center a string horizontally and draw it at row `row` with attribute `attr`. */
+static void draw_centered(int row, const char* s, unsigned char attr) {
+    int len     = kstrlen(s);
+    int start_x = (WIDTH - len) / 2;
+    if (start_x < 0) start_x = 0;
+    /* Clear the row segment first to erase any previous text of different length */
+    for (int x = start_x; x < start_x + len && x < WIDTH; x++)
+        vga_putcell(x, row, ' ', attr);
+    for (int i = 0; i < len && start_x + i < WIDTH; i++)
+        vga_putcell(start_x + i, row, s[i], attr);
+}
+
+/* Draw a count-down ticker row and wait ~1 s, scanning ESC each ~100 ms.
+ * Returns 1 if ESC was pressed, 0 otherwise.
+ * `row` is the screen row for the countdown message.
+ * `attr_bg`/`attr_fg` are the fill and text color attributes. */
+static int countdown_second(int row, unsigned char attr_bg, unsigned char attr_fg,
+                             const char* prefix, int digit) {
+    char msg[64];
+    int pos = 0;
+    for (int i = 0; prefix[i] && pos < 60; i++) msg[pos++] = prefix[i];
+    msg[pos++] = '0' + digit;
+    msg[pos++] = '.'; msg[pos++] = '.'; msg[pos++] = '.';
+    msg[pos]   = '\0';
+
+    /* Clear and draw countdown row */
+    int start_x = (WIDTH - pos) / 2;
+    for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, row, ' ', attr_bg);
+    for (int i = 0; i < pos && start_x + i < WIDTH; i++)
+        vga_putcell(start_x + i, row, msg[i], attr_fg);
+
+    /* Poll ESC ~10 times with ~100 ms delay each */
+    for (int i = 0; i < 10; i++) {
+        for (volatile int j = 0; j < 1000000; j++);
+        /* kb_read_scancode has a timeout so it won't spin forever */
+        u8 sc = kb_read_scancode();
+        if (sc == 0x01) return 1;   /* ESC scancode */
+    }
+    return 0;
+}
+
+/* -------- Restart screen -------- */
 void show_restart_screen(void) {
     vga_clear();
-    
+
+    /* Gradient background */
     for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            unsigned char attr = 0x20 + (y / 3);
-            if (attr > 0x2F) attr = 0x2F;
-            vga_putcell(x, y, ' ', attr);
-        }
+        unsigned char attr = 0x20 + (y / 3);
+        if (attr > 0x2F) attr = 0x2F;
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
     }
-    
-    draw_box(25, 8, 30, 10, " RESTARTING ", 0x2F, 0x2E, 0x20);
-    
+
+    /* Dialog box centered on screen */
+    int bx = (WIDTH  - 30) / 2;
+    int by = (HEIGHT - 10) / 2;
+    draw_box(bx, by, 30, 10, " RESTARTING ", 0x2F, 0x2E, 0x20);
+
     const char* lines[] = {
-        "Gonna restart now...",
-        "",
-        "Saving your stuff",
-        "Killing processes", 
-        "Unmounting drives",
-        "",
+        "Restarting NoirOS...", "",
+        "Saving state",
+        "Stopping processes",
+        "Unmounting drives", "",
         "Restarting in 3 seconds",
-        "Press ESC to bail out"
+        "Press ESC to cancel"
     };
-    
-    for (int i = 0; i < 8; i++) {
-        int len = kstrlen(lines[i]);
-        int start_x = 40 - len/2;
-        for (int j = 0; j < len; j++) {
-            vga_putcell(start_x + j, 10 + i, lines[i][j], 0x2F);
-        }
-    }
-    
-    for (int countdown = 3; countdown > 0; countdown--) {
-        char count_msg[50];
-        int pos = 0;
-        append_str(count_msg, &pos, "Restarting in ", sizeof(count_msg));
-        append_char(count_msg, &pos, '0' + countdown, sizeof(count_msg));
-        append_str(count_msg, &pos, "...", sizeof(count_msg));
-        
-        for (int x = 20; x < 60; x++) {
-            vga_putcell(x, 19, ' ', 0x2E);
-        }
-        
-        for (int i = 0; i < pos; i++) {
-            vga_putcell(40 - pos/2 + i, 19, count_msg[i], 0x2E);
-        }
-        
-        for (int i = 0; i < 10; i++) {
-            for (volatile int j = 0; j < 1000000; j++);
-            u8 sc = kb_read_scancode();
-            if (sc == 0x01) {
-                ui_draw();
-                return;
-            }
-        }
-    }
-    
+    int num_lines = 8;
+    int text_start_row = by + 1;
+    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
+        draw_centered(text_start_row + i, lines[i], 0x2F);
+
+    int ticker_row = by + num_lines + 1;
+    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+
+    for (int cd = 3; cd > 0; cd--)
+        if (countdown_second(ticker_row, 0x2E, 0x2F, "Restarting in ", cd))
+            { ui_draw(); return; }
+
+    /* Commit — jump back to kernel entry point */
     vga_clear();
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            vga_putcell(x, y, ' ', 0x0F);
-        }
-    }
-    
-    draw_box(30, 10, 20, 5, " BRB! ", 0x4F, 0x4E, 0x40);
-    const char* restart_msg = "Restarting kernel...";
-    int restart_len = kstrlen(restart_msg);
-    for (int i = 0; i < restart_len; i++) {
-        vga_putcell(40 - restart_len/2 + i, 12, restart_msg[i], 0x4F);
-    }
-    
+    for (int y = 0; y < HEIGHT; y++)
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x0F);
+    int bx2 = (WIDTH - 20) / 2, by2 = (HEIGHT - 5) / 2;
+    draw_box(bx2, by2, 20, 5, " RESTARTING ", 0x4F, 0x4E, 0x40);
+    draw_centered(by2 + 2, "Restarting kernel...", 0x4F);
     for (volatile int i = 0; i < 10000000; i++);
-    
-    // Actually restart the kernel
+
+    /* Jump to kernel load address — matches linker.ld ENTRY address */
     void (*restart_kernel)(void) = (void (*)(void))0x100000;
     restart_kernel();
 }
 
+/* -------- Shutdown screen -------- */
 void show_shutdown_screen(void) {
     vga_clear();
-    
+
     for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            unsigned char attr = 0x40 + (y / 3);
-            if (attr > 0x4F) attr = 0x4F;
-            vga_putcell(x, y, ' ', attr);
-        }
+        unsigned char attr = 0x40 + (y / 3);
+        if (attr > 0x4F) attr = 0x4F;
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
     }
-    
-    draw_box(25, 7, 30, 12, " SHUTTING DOWN ", 0x4F, 0x4E, 0x40);
-    
+
+    int bx = (WIDTH  - 30) / 2;
+    int by = (HEIGHT - 12) / 2;
+    draw_box(bx, by, 30, 12, " SHUTTING DOWN ", 0x4F, 0x4E, 0x40);
+
     const char* lines[] = {
-        "Time to shut down...",
-        "",
-        "Saving your files",
-        "Stopping stuff",
-        "Closing apps", 
-        "Unmounting drives",
-        "",
-        "Shutting down in 3 seconds",
+        "Shutting down NoirOS...", "",
+        "Saving files",
+        "Stopping services",
+        "Closing apps",
+        "Unmounting drives", "",
+        "Shutdown in 3 seconds",
         "Press ESC to cancel"
     };
-    
-    for (int i = 0; i < 9; i++) {
-        int len = kstrlen(lines[i]);
-        int start_x = 40 - len/2;
-        for (int j = 0; j < len; j++) {
-            vga_putcell(start_x + j, 9 + i, lines[i][j], 0x4F);
-        }
-    }
-    
-    for (int countdown = 3; countdown > 0; countdown--) {
-        char count_msg[50];
-        int pos = 0;
-        append_str(count_msg, &pos, "Bye in ", sizeof(count_msg));
-        append_char(count_msg, &pos, '0' + countdown, sizeof(count_msg));
-        append_str(count_msg, &pos, "...", sizeof(count_msg));
-        
-        for (int x = 20; x < 60; x++) {
-            vga_putcell(x, 20, ' ', 0x4E);
-        }
-        
-        for (int i = 0; i < pos; i++) {
-            vga_putcell(40 - pos/2 + i, 20, count_msg[i], 0x4E);
-        }
-        
-        for (int i = 0; i < 10; i++) {
-            for (volatile int j = 0; j < 1000000; j++);
-            u8 sc = kb_read_scancode();
-            if (sc == 0x01) {
-                ui_draw();
-                return;
-            }
-        }
-    }
-    
-    const char* shutdown_stages[] = {
+    int num_lines = 9;
+    int text_start_row = by + 1;
+    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
+        draw_centered(text_start_row + i, lines[i], 0x4F);
+
+    int ticker_row = by + num_lines + 1;
+    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+
+    for (int cd = 3; cd > 0; cd--)
+        if (countdown_second(ticker_row, 0x4E, 0x4F, "Bye in ", cd))
+            { ui_draw(); return; }
+
+    /* Progress through shutdown stages */
+    const char* stages[] = {
         "Killing processes...",
-        "Saving stuff...",  
+        "Saving state...",
         "Unmounting drives...",
         "Powering down...",
         "See ya!"
     };
-    
-    for (int stage = 0; stage < 5; stage++) {
-        for (int x = 26; x < 54; x++) {
-            vga_putcell(x, 12, ' ', 0x4E);
-        }
-        
-        int len = kstrlen(shutdown_stages[stage]);
-        for (int i = 0; i < len; i++) {
-            vga_putcell(40 - len/2 + i, 12, shutdown_stages[stage][i], 0x4F);
-        }
-        
-        int bar_y = 14;
-        int bar_x = 30;
-        int bar_w = 20;
-        int progress = (stage + 1) * bar_w / 5;
-        
+    int stage_row  = by + 3;
+    int bar_row    = by + 5;
+    int bar_x      = (WIDTH - 20) / 2;
+    int bar_w      = 20;
+
+    for (int s = 0; s < 5; s++) {
+        /* Clear and redraw stage text */
+        for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, stage_row, ' ', 0x4E);
+        draw_centered(stage_row, stages[s], 0x4F);
+
+        /* Progress bar */
+        int progress = (s + 1) * bar_w / 5;
         for (int x = 0; x < bar_w; x++) {
-            char ch = (x < progress) ? '#' : '-';
-            unsigned char attr = (x < progress) ? 0x4C : 0x47;
-            vga_putcell(bar_x + x, bar_y, ch, attr);
+            char ch   = (x < progress) ? '#' : '-';
+            unsigned char at = (x < progress) ? 0x4C : 0x47;
+            vga_putcell(bar_x + x, bar_row, ch, at);
         }
-        
         for (volatile int i = 0; i < 5000000; i++);
     }
-    
+
+    /* Final halt screen */
     vga_clear();
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            vga_putcell(x, y, ' ', 0x00);
-        }
-    }
-    
-    draw_box(25, 10, 30, 5, " GOODBYE! ", 0x70, 0x07, 0x00);
-    const char* halt_msg = "Safe to power off now";
-    int halt_len = kstrlen(halt_msg);
-    for (int i = 0; i < halt_len; i++) {
-        vga_putcell(40 - halt_len/2 + i, 12, halt_msg[i], 0x70);
-    }
-    
+    for (int y = 0; y < HEIGHT; y++)
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x00);
+    int bx2 = (WIDTH - 30) / 2, by2 = (HEIGHT - 5) / 2;
+    draw_box(bx2, by2, 30, 5, " GOODBYE! ", 0x70, 0x07, 0x00);
+    draw_centered(by2 + 2, "Safe to power off now", 0x70);
     for (volatile int i = 0; i < 20000000; i++);
-    
-    // Actually exit QEMU (shutdown)
-    while(1) {
-        __asm__ volatile ("cli; hlt");
-    }
+
+    /* Halt: disable interrupts and spin — correct x86 shutdown for bare metal/QEMU */
+    while (1) { __asm__ volatile ("cli; hlt"); }
 }
 
+/* -------- Sleep screen -------- */
 void show_sleep_screen(void) {
     vga_clear();
-    
+
     for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            unsigned char attr = 0x10 + (y / 5);
-            if (attr > 0x1F) attr = 0x1F;
-            vga_putcell(x, y, ' ', attr);
-        }
+        unsigned char attr = 0x10 + (y / 5);
+        if (attr > 0x1F) attr = 0x1F;
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
     }
-    
-    draw_box(25, 8, 30, 10, " GOING TO SLEEP ", 0x1F, 0x1E, 0x10);
-    
+
+    int bx = (WIDTH  - 30) / 2;
+    int by = (HEIGHT - 10) / 2;
+    draw_box(bx, by, 30, 10, " GOING TO SLEEP ", 0x1F, 0x1E, 0x10);
+
     const char* lines[] = {
-        "Time for a nap...",
-        "",
-        "Saving your session",
+        "Time for a nap...", "",
+        "Saving session",
         "Reducing power",
-        "Going into sleep mode",
-        "",
+        "Entering sleep mode", "",
         "Sleeping in 2 seconds",
         "Press ESC to stay awake"
     };
-    
-    for (int i = 0; i < 8; i++) {
-        int len = kstrlen(lines[i]);
-        int start_x = 40 - len/2;
-        for (int j = 0; j < len; j++) {
-            vga_putcell(start_x + j, 10 + i, lines[i][j], 0x1F);
-        }
-    }
-    
-    for (int countdown = 2; countdown > 0; countdown--) {
-        char count_msg[50];
-        int pos = 0;
-        append_str(count_msg, &pos, "Sleeping in ", sizeof(count_msg));
-        append_char(count_msg, &pos, '0' + countdown, sizeof(count_msg));
-        append_str(count_msg, &pos, "...", sizeof(count_msg));
-        
-        for (int x = 20; x < 60; x++) {
-            vga_putcell(x, 19, ' ', 0x1E);
-        }
-        
-        for (int i = 0; i < pos; i++) {
-            vga_putcell(40 - pos/2 + i, 19, count_msg[i], 0x1E);
-        }
-        
-        for (int i = 0; i < 10; i++) {
-            for (volatile int j = 0; j < 1000000; j++);
-            u8 sc = kb_read_scancode();
-            if (sc == 0x01) {
-                ui_draw();
-                return;
-            }
-        }
-    }
-    
-    for (int fade_level = 0; fade_level < 8; fade_level++) {
+    int num_lines = 8;
+    int text_start_row = by + 1;
+    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
+        draw_centered(text_start_row + i, lines[i], 0x1F);
+
+    int ticker_row = by + num_lines + 1;
+    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+
+    for (int cd = 2; cd > 0; cd--)
+        if (countdown_second(ticker_row, 0x1E, 0x1F, "Sleeping in ", cd))
+            { ui_draw(); return; }
+
+    /* Fade out */
+    for (int fade = 0; fade < 8; fade++) {
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
-                unsigned char base_attr = 0x10 + (y / 5);
-                if (base_attr > 0x1F) base_attr = 0x1F;
-                
-                unsigned char fg = base_attr & 0x0F;
-                if (fg > fade_level) fg -= fade_level;
-                else fg = 0;
-                
-                unsigned char final_attr = (base_attr & 0xF0) | fg;
-                vga_putcell(x, y, ' ', final_attr);
+                unsigned char base = (unsigned char)(0x10 + (y / 5));
+                if (base > 0x1F) base = 0x1F;
+                unsigned char fg = base & 0x0F;
+                fg = (fg > (unsigned char)fade) ? fg - (unsigned char)fade : 0;
+                vga_putcell(x, y, ' ', (base & 0xF0) | fg);
             }
         }
-        
-        if (fade_level < 5) {
-            draw_box(30, 11, 20, 3, " SLEEPY ", 0x1F - fade_level, 0x1E - fade_level, 0x10);
-            const char* sleep_msg = "Zzz...";
-            int sleep_len = kstrlen(sleep_msg);
-            for (int i = 0; i < sleep_len; i++) {
-                vga_putcell(40 - sleep_len/2 + i, 12, sleep_msg[i], 0x1F - fade_level);
-            }
+        if (fade < 5) {
+            int sbx = (WIDTH - 20) / 2, sby = HEIGHT / 2 - 1;
+            draw_box(sbx, sby, 20, 3, " SLEEPY ", 0x1F - fade, 0x1E - fade, 0x10);
+            draw_centered(sby + 1, "Zzz...", 0x1F - fade);
         }
-        
         for (volatile int i = 0; i < 3000000; i++);
     }
-    
+
+    /* True sleep: blank screen then HLT — wake on any keypress */
     vga_clear();
-    for (int y = 0; y < HEIGHT; y++) {
-        for (int x = 0; x < WIDTH; x++) {
-            vga_putcell(x, y, ' ', 0x00);
-        }
+    for (int y = 0; y < HEIGHT; y++)
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x00);
+    {
+        int sbx = (WIDTH - 10) / 2, sby = HEIGHT / 2 - 1;
+        draw_box(sbx, sby, 10, 3, "", 0x08, 0x08, 0x00);
+        draw_centered(sby + 1, "Zzz", 0x08);
     }
-    
-    draw_box(35, 11, 10, 3, "", 0x08, 0x08, 0x00);
-    const char* zzz = "Zzz";
-    for (int i = 0; i < 3; i++) {
-        vga_putcell(38 + i, 12, zzz[i], 0x08);
-    }
-    
-    // Actually sleep - halt CPU until interrupt
+
+    /* HLT: CPU sleeps until the next interrupt (keyboard generates IRQ1).
+     * We don't need to re-enable interrupts before HLT because GRUB leaves
+     * them enabled; this is safe as long as the IDT is in place. */
     u8 wake_key = 0;
     while (!wake_key) {
         __asm__ volatile ("hlt");
         wake_key = kb_read_scancode();
     }
-    
-    for (int brighten = 1; brighten <= 5; brighten++) {
+
+    /* Fade back in */
+    for (int bright = 1; bright <= 5; bright++) {
         for (int y = 0; y < HEIGHT; y++) {
             for (int x = 0; x < WIDTH; x++) {
-                unsigned char attr = 0x10 + (y / 5) + brighten;
+                unsigned char attr = (unsigned char)(0x10 + (y / 5) + bright);
                 if (attr > 0x1F) attr = 0x1F;
                 vga_putcell(x, y, ' ', attr);
             }
         }
-        
-        draw_box(30, 10, 20, 5, " WAKEY WAKEY ", 0x1F, 0x1E, 0x10);
-        const char* wake_msg = "Morning!";
-        int wake_len = kstrlen(wake_msg);
-        for (int i = 0; i < wake_len; i++) {
-            vga_putcell(40 - wake_len/2 + i, 12, wake_msg[i], 0x1F);
-        }
-        
-        const char* ready_msg = "System waking up...";
-        int ready_len = kstrlen(ready_msg);
-        for (int i = 0; i < ready_len; i++) {
-            vga_putcell(40 - ready_len/2 + i, 13, ready_msg[i], 0x1E);
-        }
-        
+        int wbx = (WIDTH - 20) / 2, wby = (HEIGHT - 5) / 2;
+        draw_box(wbx, wby, 20, 5, " WAKEY WAKEY ", 0x1F, 0x1E, 0x10);
+        draw_centered(wby + 1, "Good morning!", 0x1F);
+        draw_centered(wby + 2, "System waking up...", 0x1E);
         for (volatile int i = 0; i < 2000000; i++);
     }
-    
+
     for (volatile int i = 0; i < 3000000; i++);
     ui_draw();
 }

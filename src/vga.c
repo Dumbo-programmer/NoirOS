@@ -2,40 +2,59 @@
 #include "../include/common.h"
 #include "../include/util.h"
 
-volatile u16* const vga = (u16*)VGA_ADDR;
+/* Single authoritative VGA pointer declared volatile as required for
+ * MMIO.  All accesses through this pointer go through the volatile path. */
+volatile u16* const vga = (volatile u16*)VGA_ADDR;
+
 static int cursor_x = 0, cursor_y = 0;
 static u8 default_attr = 0x07;
 
 void vga_putcell(int x, int y, char ch, u8 attr) {
-            // Write a character and attribute to VGA text buffer at (x, y).
-            // Each cell is 16 bits: lower 8 bits = ASCII char, upper 8 bits = color attribute.
-            // If you mess up the coordinates, your screen will look like abstract art.
-        // Write a character and attribute to VGA text buffer at (x, y).
-        // Each cell is 16 bits: lower 8 bits = ASCII char, upper 8 bits = color attribute.
+    /* Use WIDTH/HEIGHT constants — never hardcode 80 or 25 here. */
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
     vga[y * WIDTH + x] = ((u16)attr << 8) | (u8)ch;
 }
+
 void vga_clear(void) {
     for (int y = 0; y < HEIGHT; ++y)
         for (int x = 0; x < WIDTH; ++x)
             vga_putcell(x, y, ' ', default_attr);
     cursor_x = cursor_y = 0;
 }
+
 void term_putc(char c) {
-    if (c == '\n') { cursor_x = 0; cursor_y++; return; }
+    if (c == '\n') { cursor_x = 0; cursor_y++; goto check_scroll; }
     if (c == '\r') { cursor_x = 0; return; }
-    if (c == '\t') { int spaces = 4 - (cursor_x % 4); while (spaces--) term_putc(' '); return; }
+    if (c == '\t') {
+        int spaces = 4 - (cursor_x % 4);
+        while (spaces--) term_putc(' ');
+        return;
+    }
     vga_putcell(cursor_x, cursor_y, c, default_attr);
     cursor_x++;
     if (cursor_x >= WIDTH) { cursor_x = 0; cursor_y++; }
-    if (cursor_y >= HEIGHT) cursor_y = HEIGHT - 1;
+check_scroll:
+    /* Scroll up one line if we fall off the bottom instead of clamping.
+     * Clamping silently overwrites the last line — scrolling is correct. */
+    if (cursor_y >= HEIGHT) {
+        /* Shift all rows up by one */
+        for (int y = 1; y < HEIGHT; ++y)
+            for (int x = 0; x < WIDTH; ++x)
+                vga[((y - 1) * WIDTH) + x] = vga[(y * WIDTH) + x];
+        /* Clear the newly exposed bottom row */
+        for (int x = 0; x < WIDTH; ++x)
+            vga_putcell(x, HEIGHT - 1, ' ', default_attr);
+        cursor_y = HEIGHT - 1;
+    }
 }
+
 void term_write(const char* s) { while (*s) term_putc(*s++); }
 
-void draw_box(int x, int y, int w, int h, const char* title, u8 title_attr, u8 border_attr, u8 bg_attr) {
-    for (int i = 0; i < w; ++i) vga_putcell(x + i, y, ' ', border_attr);
+void draw_box(int x, int y, int w, int h,
+              const char* title, u8 title_attr, u8 border_attr, u8 bg_attr) {
+    for (int i = 0; i < w; ++i) vga_putcell(x + i, y,         ' ', border_attr);
     for (int i = 0; i < w; ++i) vga_putcell(x + i, y + h - 1, ' ', border_attr);
-    for (int i = 0; i < h; ++i) vga_putcell(x, y + i, ' ', border_attr);
+    for (int i = 0; i < h; ++i) vga_putcell(x,         y + i, ' ', border_attr);
     for (int i = 0; i < h; ++i) vga_putcell(x + w - 1, y + i, ' ', border_attr);
 
     for (int yy = y + 1; yy < y + h - 1; ++yy)
@@ -43,14 +62,15 @@ void draw_box(int x, int y, int w, int h, const char* title, u8 title_attr, u8 b
             vga_putcell(xx, yy, ' ', bg_attr);
 
     if (title) {
-        int len = kstrlen(title);
+        int len   = kstrlen(title);
         int start = x + 2;
         for (int i = 0; i < len && start + i < x + w - 2; ++i)
             vga_putcell(start + i, y, title[i], title_attr);
     }
 }
 
-void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* text, u8 attr) {
+void draw_text_in_win(int x, int y, int w, int h,
+                      int wx, int wy, const char* text, u8 attr) {
     int sx = x + 1 + wx;
     int sy = y + 1 + wy;
     int cx = sx, cy = sy;
@@ -63,22 +83,15 @@ void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* te
         cx++; p++;
     }
 }
-/* Get character at screen position */
+
+/* Get character/attribute at screen position.
+ * Use VGA_ADDR and WIDTH/HEIGHT constants — never hardcode 0xB8000, 80, or 25. */
 char vga_getcell_char(int x, int y) {
-    if (x < 0 || x >= 80 || y < 0 || y >= 25) return ' ';
-    volatile char* video = (volatile char*)0xB8000;
-    return video[(y * 80 + x) * 2];
+    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return ' ';
+    return (char)(vga[y * WIDTH + x] & 0xFF);
 }
 
-/* Get attribute at screen position */
 unsigned char vga_getcell_attr(int x, int y) {
-    if (x < 0 || x >= 80 || y < 0 || y >= 25) return 0x07;
-    volatile char* video = (volatile char*)0xB8000;
-    return video[(y * 80 + x) * 2 + 1];
+    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return 0x07;
+    return (unsigned char)((vga[y * WIDTH + x] >> 8) & 0xFF);
 }
-
-
-/*
-char vga_getcell_char(int x, int y);
-unsigned char vga_getcell_attr(int x, int y);
-*/
