@@ -1,4 +1,5 @@
 #include "../include/mouse.h"
+#include "../include/common.h"
 
 static mouse_state_t mouse     = {0};
 static unsigned char mouse_packet[3];
@@ -106,9 +107,9 @@ void init_mouse(void) {
     ack = mouse_read(); /* expect 0xFA ACK */
     (void)ack;
 
-    /* Centre cursor on 80x25 screen */
-    mouse.x = 40;
-    mouse.y = 12;
+    /* Centre cursor on configured screen size */
+    mouse.x = WIDTH / 2;
+    mouse.y = HEIGHT / 2;
 }
 
 /* ---------- Mouse interrupt handler ---------- */
