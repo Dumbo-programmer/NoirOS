@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page.title | default: site.title }}</title>
-  <link rel="stylesheet" href="/docs/assets/css/dark.css">
+  <link rel="stylesheet" href="{{ '/assets/css/dark.css' | relative_url }}">
+  <meta name="theme-color" content="#0b0f14">
+  <meta name="description" content="NoirOS project documentation">
 </head>
 <body>
   <header class="site-header">
@@ -14,7 +16,9 @@
   </header>
 
   <main class="wrap">
-    {{ content }}
+    <article class="content">
+      {{ content }}
+    </article>
   </main>
 
   <footer class="site-footer">
