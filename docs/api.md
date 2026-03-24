@@ -101,4 +101,4 @@ This page collects the Doxygen-style function documentation extracted from the s
 
 ---
 
-If you want these pages split per-module or to include the full original comment blocks and examples, I can expand each section into a separate markdown file (e.g. `docs/input.md`) and add cross-links. Want me to split them out now or keep this single-page reference?
+This page is a compact API summary. The full per-module pages link to their source and include each function's documentation.

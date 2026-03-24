@@ -52,6 +52,15 @@ make run
 
 ## Documentation
 - [API Reference](api.md) — Generated summary of module and function documentation.
+### Module docs
+- [Input](input.md)
+- [Editor](editor.md)
+- [Filesystem](fs.md)
+- [Snake Game](game_snake.md)
+- [Kernel](kernel.md)
+- [Mouse](mouse.md)
+- [Utilities](util.md)
+- [VGA / Drawing](vga.md)
 
 ## License
 NoirOS is released under the MIT License. See the `License` file for details.
