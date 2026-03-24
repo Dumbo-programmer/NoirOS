@@ -9,12 +9,22 @@ volatile u16* const vga = (volatile u16*)VGA_ADDR;
 static int cursor_x = 0, cursor_y = 0;
 static u8 default_attr = 0x07;
 
+/**
+ * Write a character cell to the VGA text buffer at (x,y).
+ * @param x column (0..WIDTH-1)
+ * @param y row (0..HEIGHT-1)
+ * @param ch ASCII character to draw
+ * @param attr attribute byte (foreground/background)
+ */
 void vga_putcell(int x, int y, char ch, u8 attr) {
     /* Use WIDTH/HEIGHT constants — never hardcode 80 or 25 here. */
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
     vga[y * WIDTH + x] = ((u16)attr << 8) | (u8)ch;
 }
 
+/**
+ * Clear the entire VGA text screen and reset cursor position.
+ */
 void vga_clear(void) {
     for (int y = 0; y < HEIGHT; ++y)
         for (int x = 0; x < WIDTH; ++x)
@@ -22,6 +32,10 @@ void vga_clear(void) {
     cursor_x = cursor_y = 0;
 }
 
+/**
+ * Put a single character to the text terminal stream, handling
+ * newline, carriage return, tab and automatic scrolling.
+ */
 void term_putc(char c) {
     if (c == '\n') { cursor_x = 0; cursor_y++; goto check_scroll; }
     if (c == '\r') { cursor_x = 0; return; }
@@ -48,8 +62,15 @@ check_scroll:
     }
 }
 
+/**
+ * Write a NUL-terminated string to the terminal.
+ */
 void term_write(const char* s) { while (*s) term_putc(*s++); }
 
+/**
+ * Draw a framed box at (x,y) with width w and height h.
+ * The interior is filled with `bg_attr` and the top row may show `title`.
+ */
 void draw_box(int x, int y, int w, int h,
               const char* title, u8 title_attr, u8 border_attr, u8 bg_attr) {
     for (int i = 0; i < w; ++i) vga_putcell(x + i, y,         ' ', border_attr);
@@ -69,6 +90,10 @@ void draw_box(int x, int y, int w, int h,
     }
 }
 
+/**
+ * Draw `text` into a window region defined by (x,y,w,h) with
+ * local window offset (wx,wy). Text wraps and respects newline/tab.
+ */
 void draw_text_in_win(int x, int y, int w, int h,
                       int wx, int wy, const char* text, u8 attr) {
     int sx = x + 1 + wx;
@@ -86,11 +111,19 @@ void draw_text_in_win(int x, int y, int w, int h,
 
 /* Get character/attribute at screen position.
  * Use VGA_ADDR and WIDTH/HEIGHT constants — never hardcode 0xB8000, 80, or 25. */
+/**
+ * Get the character stored at screen cell (x,y).
+ * @return ASCII character or space if out of bounds
+ */
 char vga_getcell_char(int x, int y) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return ' ';
     return (char)(vga[y * WIDTH + x] & 0xFF);
 }
 
+/**
+ * Get the attribute byte stored at screen cell (x,y).
+ * @return attribute or 0x07 if out of bounds
+ */
 unsigned char vga_getcell_attr(int x, int y) {
     if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return 0x07;
     return (unsigned char)((vga[y * WIDTH + x] >> 8) & 0xFF);

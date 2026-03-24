@@ -18,7 +18,13 @@ int snake_handle_key(int key);  /* returns 1 if ESC pressed */
 enum { MODE_BROWSER = 0, MODE_EDITOR = 1, MODE_GAME = 2 };
 static int current_mode = MODE_BROWSER;
 
-/* Handle command input at the status bar; returns updated explorer_sel. */
+/**
+ * Read a command line from the status bar prompt and execute simple commands.
+ * This updates UI selection or switches modes (editor/game) as needed.
+ * @param explorer_sel current explorer selection index
+ * @param mode pointer to current mode variable (may be modified)
+ * @return updated explorer selection index
+ */
 static int handle_command_input(int explorer_sel, int *mode) {
     const int sy = 23;
     const int sx = 1;
@@ -81,10 +87,11 @@ static int handle_command_input(int explorer_sel, int *mode) {
     return explorer_sel;
 }
 
+/**
+ * Kernel main loop: initialize subsystems and process events.
+ * Handles navigation in browser mode, editor input and the snake game loop.
+ */
 void kernel_main(void) {
-    /* Main entry point for NoirOS kernel.
-     * Initializes filesystem and UI, then enters the main event loop.
-     * Handles mode switching, keyboard input, and the command interface. */
     init_filesystem();
     ui_draw();
 

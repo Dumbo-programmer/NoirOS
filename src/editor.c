@@ -30,7 +30,11 @@ static int  editor_modified = 0;
 
 /* ---- Buffer helpers ---- */
 
-/* Return the buffer offset of the start of logical line `line`. */
+/**
+ * Return the buffer offset of the start of logical line `line`.
+ * @param line line index (0-based)
+ * @return buffer offset where the line begins
+ */
 static int get_line_start(int line) {
     int off = 0, l = 0;
     while (l < line && off < editor_len) {
@@ -40,15 +44,20 @@ static int get_line_start(int line) {
     return off;
 }
 
-/* Return the number of characters on the line that starts at buffer offset `off`
- * (not counting the newline itself). */
+/**
+ * Return the number of characters on the line that starts at buffer offset `off`.
+ * Does not include the terminating newline.
+ */
 static int get_line_length_at_off(int off) {
     int len = 0;
     while (off + len < editor_len && editor_buffer[off + len] != '\n') len++;
     return len;
 }
 
-/* Convert the 2D cursor position to a 1D buffer offset. */
+/**
+ * Convert the 2D cursor position (editor_cursor_x, editor_cursor_y)
+ * to a 1D buffer offset within `editor_buffer`.
+ */
 static int cursor_to_offset(void) {
     int off      = get_line_start(editor_cursor_y);
     int line_len = get_line_length_at_off(off);
@@ -56,7 +65,10 @@ static int cursor_to_offset(void) {
     return off + editor_cursor_x;
 }
 
-/* Insert character `ch` at buffer offset `off`, shifting everything right. */
+/**
+ * Insert character `ch` at buffer offset `off`, shifting contents right.
+ * Truncates if buffer is full.
+ */
 static void insert_char_at(int off, char ch) {
     if (editor_len >= (int)sizeof(editor_buffer) - 1) return;
     for (int i = editor_len; i > off; --i) editor_buffer[i] = editor_buffer[i - 1];
@@ -65,7 +77,9 @@ static void insert_char_at(int off, char ch) {
     editor_modified = 1;
 }
 
-/* Delete the character immediately before offset `off` (backspace semantics). */
+/**
+ * Delete the character immediately before offset `off` (backspace semantics).
+ */
 static void delete_char_before(int off) {
     if (off <= 0) return;
     for (int i = off - 1; i < editor_len - 1; ++i) editor_buffer[i] = editor_buffer[i + 1];
@@ -75,6 +89,9 @@ static void delete_char_before(int off) {
 
 /* ---- Drawing ---- */
 
+/**
+ * Redraw the editor UI: title bar, visible text window, cursor and status.
+ */
 void editor_draw(void) {
     ui_clear();
 
@@ -131,6 +148,12 @@ void editor_draw(void) {
 
 /* ---- Open ---- */
 
+/**
+ * Open file `fname` into the editor buffer and switch mode to editor.
+ * Copies up to the internal buffer size.
+ * @param fname filename to open
+ * @param mode pointer to mode variable (set to MODE_EDITOR)
+ */
 void editor_open(const char *fname, int *mode) {
     int idx = -1;
     for (int i = 0; i < fs_count(); ++i) {
@@ -155,6 +178,12 @@ void editor_open(const char *fname, int *mode) {
 
 /* ---- Key handler ---- */
 
+/**
+ * Handle a single keypress while in editor mode.
+ * Supports navigation, editing, and Ctrl+S/Ctrl+X shortcuts.
+ * @param key key value from read_key()
+ * @param mode pointer to mode variable (may be changed to MODE_BROWSER)
+ */
 void editor_handle_key(int key, int *mode) {
     /* Ctrl+S and Ctrl+X are detected by the numeric value read_key() returns
      * for Ctrl+letter (letter - 'a' + 1), NOT by checking is_ctrl_pressed()
@@ -266,6 +295,10 @@ void editor_handle_key(int key, int *mode) {
 
 /* ---- Mouse support (optional) ---- */
 #ifdef EDITOR_MOUSE_SUPPORT
+/**
+ * Set the editor cursor position from a mouse click (screen coordinates).
+ * Converts screen x/y into logical editor coordinates and clamps to bounds.
+ */
 void editor_set_cursor_pos(int x, int y) {
     /* Content area: x in [1, WIDTH-2], y in [1, VIEW_H] (row 0 is title). */
     if (x < 1 || x >= WIDTH - 1) return;

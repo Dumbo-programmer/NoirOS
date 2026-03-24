@@ -1,6 +1,11 @@
 #include "../include/input.h"
 #include "../include/common.h"
 
+/**
+ * Read a byte from an I/O port.
+ * @param port I/O port number
+ * @return data byte read from the port
+ */
 static inline u8 inb(u16 port) {
     u8 val;
     __asm__ volatile ("inb %1, %0" : "=a"(val) : "Nd"(port));
@@ -76,6 +81,13 @@ static const char scancode_map_upper[128] = {
 #define SC_CAPS_LOCK 0x3A
 #define SC_SPACE     0x39
 
+/**
+ * Translate raw scancodes into logical key values.
+ * Handles modifier state (shift/ctrl/alt/caps) and returns
+ * ASCII printable characters, control codes (Ctrl+X -> 1..26),
+ * or special key constants (K_ARROW_*, K_F1, etc.).
+ * Returns 0 for ignored events.
+ */
 int read_key(void) {
     u8 sc = kb_read_scancode();
 
@@ -155,11 +167,21 @@ int read_key(void) {
     return 0;
 }
 
+/**
+ * Query modifier and lock states.
+ */
 int is_shift_pressed(void) { return kb_state.shift_pressed; }
 int is_ctrl_pressed(void)  { return kb_state.ctrl_pressed;  }
 int is_alt_pressed(void)   { return kb_state.alt_pressed;   }
 int is_caps_lock_on(void)  { return kb_state.caps_lock;     }
 
+/**
+ * Read a line of text from the keyboard into `buf` (NUL-terminated).
+ * Handles backspace and basic editing. Blocks until Enter is pressed.
+ * @param buf destination buffer
+ * @param max maximum buffer size including terminating NUL
+ * @return number of characters written (excluding NUL)
+ */
 int input_readline(char* buf, int max) {
     int len = 0;
     for (;;) {

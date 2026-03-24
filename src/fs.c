@@ -19,6 +19,11 @@ static int        pool_used[DIR_POOL_SIZE]; /* zero-initialized (BSS) */
 static struct Dir s_docs_dir;
 
 /* -------- Internal helpers -------- */
+/**
+ * Validate a filename component.
+ * Disallows NULL, empty strings, overly long names, and path separators.
+ * @return 1 if invalid, 0 if valid
+ */
 static int name_invalid(const char* n) {
     if (!n) return 1;
     int L = kstrlen(n);
@@ -28,6 +33,10 @@ static int name_invalid(const char* n) {
     return 0;
 }
 
+/**
+ * Find a child directory by name within directory `d`.
+ * @return pointer to child Dir or NULL if not found
+ */
 static struct Dir* dir_find_child(struct Dir* d, const char* name) {
     if (!d || !name) return 0;
     for (int i = 0; i < d->subdir_count; ++i)
@@ -35,11 +44,18 @@ static struct Dir* dir_find_child(struct Dir* d, const char* name) {
     return 0;
 }
 
+/**
+ * Check whether a directory contains no files and no subdirectories.
+ * @return non-zero if empty
+ */
 static int dir_is_empty(struct Dir* d) {
     return d->file_count == 0 && d->subdir_count == 0;
 }
 
 /* Return the pool index of directory pointer d, or -1 if not in pool. */
+/**
+ * Return the index in the directory pool corresponding to `d`, or -1.
+ */
 static int pool_index_of(struct Dir* d) {
     for (int i = 0; i < DIR_POOL_SIZE; ++i)
         if (&pool[i] == d) return i;
@@ -47,6 +63,10 @@ static int pool_index_of(struct Dir* d) {
 }
 
 /* -------- Init -------- */
+/**
+ * Initialize the in-memory filesystem and preload sample files.
+ * Creates a root directory and a `/docs` sample directory with files.
+ */
 void init_filesystem(void) {
     /* root dir */
     for (int i = 0; i < MAX_DIRS_PER_DIR; i++) s_root.subdirs[i] = 0;
@@ -126,9 +146,20 @@ void init_filesystem(void) {
 }
 
 /* -------- Root/CWD/PWD -------- */
+/**
+ * Return pointer to the filesystem root directory.
+ */
 struct Dir* fs_root(void) { return &s_root; }
+/**
+ * Return pointer to the current working directory.
+ */
 struct Dir* fs_cwd(void)  { return s_cwd;  }
 
+/**
+ * Write the current working directory path into `out` (NUL-terminated).
+ * @param out output buffer
+ * @param out_len size of output buffer
+ */
 void fs_pwd(char* out, int out_len) {
     if (!out || out_len <= 0) return;
     const int TMP = 128;
@@ -155,6 +186,10 @@ void fs_pwd(char* out, int out_len) {
 }
 
 /* -------- Directory ops -------- */
+/**
+ * Create a new directory with `name` in the current working directory.
+ * Returns FS_OK or negative error codes from fs.h.
+ */
 int fs_mkdir(const char* name) {
     if (name_invalid(name)) return FS_ERR_INVALID;
     if (s_cwd->subdir_count >= MAX_DIRS_PER_DIR) return FS_ERR_NOSPACE;
@@ -177,6 +212,10 @@ int fs_mkdir(const char* name) {
     return FS_OK;
 }
 
+/**
+ * Change current working directory to `name`, "..", or "/".
+ * @return FS_OK or error code
+ */
 int fs_chdir(const char* name) {
     if (!name) return FS_ERR_INVALID;
     if (kstrcmp(name, "/") == 0)  { s_cwd = &s_root; return FS_OK; }
@@ -190,6 +229,10 @@ int fs_chdir(const char* name) {
     return FS_OK;
 }
 
+/**
+ * Remove an empty subdirectory from the current working directory.
+ * Frees the pool slot so it can be re-used.
+ */
 int fs_rmdir(const char* name) {
     if (name_invalid(name)) return FS_ERR_INVALID;
     for (int i = 0; i < s_cwd->subdir_count; ++i) {
@@ -213,25 +256,44 @@ int fs_rmdir(const char* name) {
     return FS_ERR_NOTFOUND;
 }
 
+/**
+ * Return number of subdirectories in the current working directory.
+ */
 int fs_dir_count(void) { return s_cwd->subdir_count; }
 
+/**
+ * Get pointer to subdirectory at index `idx` in the current working directory.
+ */
 struct Dir* fs_dir_get(int idx) {
     if (idx < 0 || idx >= s_cwd->subdir_count) return 0;
     return s_cwd->subdirs[idx];
 }
 
+/**
+ * Find a subdirectory by name in the current working directory.
+ */
 struct Dir* fs_find_dir(const char* name) {
     return dir_find_child(s_cwd, name);
 }
 
 /* -------- Files (scoped to CWD) -------- */
+/**
+ * Return number of files in the current working directory.
+ */
 int fs_count(void) { return s_cwd->file_count; }
 
+/**
+ * Return pointer to file at index `idx` in the current working directory.
+ */
 struct File* fs_get(int idx) {
     if (idx < 0 || idx >= s_cwd->file_count) return 0;
     return &s_cwd->files[idx];
 }
 
+/**
+ * Find a file by name in the current working directory.
+ * @return pointer to File or NULL
+ */
 struct File* fs_find(const char* name) {
     if (!name) return 0;
     for (int i = 0; i < s_cwd->file_count; ++i)
@@ -239,6 +301,12 @@ struct File* fs_find(const char* name) {
     return 0;
 }
 
+/**
+ * Create a new file in the current working directory.
+ * @param name filename
+ * @param type file type (FILE_TEXT, FILE_EXE, FILE_GAME)
+ * @return FS_OK or error code
+ */
 int fs_create(const char* name, u8 type) {
     if (name_invalid(name)) return FS_ERR_INVALID;
     if (s_cwd->file_count >= MAX_FILES_PER_DIR) return FS_ERR_NOSPACE;
@@ -253,6 +321,10 @@ int fs_create(const char* name, u8 type) {
     return FS_OK;
 }
 
+/**
+ * Delete a file by name from the current working directory.
+ * Respects the readonly flag.
+ */
 int fs_delete(const char* name) {
     if (!name) return FS_ERR_INVALID;
     int idx = -1;
@@ -272,6 +344,10 @@ int fs_delete(const char* name) {
     return FS_OK;
 }
 
+/**
+ * Overwrite a file's contents with `data` (truncated to MAX_CONTENT-1).
+ * @return new length, or negative error
+ */
 int fs_write(const char* name, const char* data) {
     struct File* f = fs_find(name);
     if (!f)       return FS_ERR_NOTFOUND;
@@ -286,6 +362,10 @@ int fs_write(const char* name, const char* data) {
     return len;
 }
 
+/**
+ * Append `data` to the file contents, up to MAX_CONTENT.
+ * @return number of bytes appended, or negative error
+ */
 int fs_append(const char* name, const char* data) {
     struct File* f = fs_find(name);
     if (!f)       return FS_ERR_NOTFOUND;
@@ -302,6 +382,9 @@ int fs_append(const char* name, const char* data) {
     return add;
 }
 
+/**
+ * Return directory and file counts for the current working directory.
+ */
 void fs_list_counts(int* out_dirs, int* out_files) {
     if (out_dirs)  *out_dirs  = s_cwd->subdir_count;
     if (out_files) *out_files = s_cwd->file_count;

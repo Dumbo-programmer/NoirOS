@@ -5,12 +5,18 @@ static unsigned char mouse_packet[3];
 static unsigned char packet_index = 0;
 
 /* ---------- Port I/O helpers ---------- */
+/**
+ * Read a byte from an I/O port.
+ */
 static inline unsigned char inb(unsigned short port) {
     unsigned char val;
     __asm volatile ("inb %1, %0" : "=a"(val) : "Nd"(port));
     return val;
 }
 
+/**
+ * Write a byte to an I/O port.
+ */
 static inline void outb(unsigned short port, unsigned char val) {
     __asm volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }
@@ -25,19 +31,28 @@ static inline void outb(unsigned short port, unsigned char val) {
  * Previous code had correct logic; comments clarify intent. */
 
 /* Wait until the controller's input buffer is empty (safe to write). */
+/**
+ * Wait until the PS/2 controller input buffer is clear (safe to write).
+ * Uses a timeout to avoid infinite blocking when hardware is absent.
+ */
 static void mouse_wait_input(void) {
-    /* Timeout prevents infinite spin if hardware is absent or broken. */
     for (volatile int t = 100000; t > 0; --t)
         if (!(inb(0x64) & 0x02)) return;
 }
 
 /* Wait until the controller's output buffer has data (safe to read). */
+/**
+ * Wait until the PS/2 controller output buffer has data (safe to read).
+ */
 static void mouse_wait_output(void) {
     for (volatile int t = 100000; t > 0; --t)
         if (inb(0x64) & 0x01) return;
 }
 
 /* ---------- Mouse read/write ---------- */
+/**
+ * Send a byte to the PS/2 mouse device (via controller auxiliary port).
+ */
 static void mouse_write(unsigned char data) {
     mouse_wait_input();
     outb(0x64, 0xD4); /* route next byte to auxiliary (mouse) port */
@@ -47,12 +62,20 @@ static void mouse_write(unsigned char data) {
 
 /* mouse_read: read one byte from the PS/2 data port.
  * Returns 0 on timeout so callers do not spin forever on missing hardware. */
+/**
+ * Read a byte from the PS/2 data port (0x60).
+ * Returns the byte or 0 on timeout.
+ */
 static unsigned char mouse_read(void) {
     mouse_wait_output();
     return inb(0x60);
 }
 
 /* ---------- Initialize mouse ---------- */
+/**
+ * Initialize the PS/2 mouse device and enable data reporting.
+ * Performs controller setup and basic self-test sequence.
+ */
 void init_mouse(void) {
     unsigned char ack;
 
@@ -89,6 +112,10 @@ void init_mouse(void) {
 }
 
 /* ---------- Mouse interrupt handler ---------- */
+/**
+ * Mouse interrupt handler — collects 3-byte packets and updates
+ * the `mouse` state structure (position, deltas, button mask).
+ */
 void mouse_handler(void) {
     unsigned char data = inb(0x60);
     mouse_packet[packet_index++] = data;
@@ -119,6 +146,9 @@ void mouse_handler(void) {
 }
 
 /* ---------- Accessor ---------- */
+/**
+ * Return pointer to the global mouse state.
+ */
 mouse_state_t* get_mouse_state(void) {
     return &mouse;
 }

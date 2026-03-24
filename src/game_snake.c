@@ -30,6 +30,9 @@ static int food_on_snake(int fx, int fy) {
     return 0;
 }
 
+/**
+ * Initialize snake game state to starting values.
+ */
 /* Place food at a position that is not occupied by the snake body.
  * Uses a deterministic sequence seeded from score+tries to spread food around.
  * Falls back to a linear scan if the pseudo-random positions are all occupied
@@ -45,6 +48,10 @@ static void place_food(void) {
             return;
         }
     }
+        /**
+         * Advance the snake game state by one tick: move the snake,
+         * check collisions, handle food consumption and growth.
+         */
     /* Exhaustive fallback (snake fills nearly the whole board) */
     for (int fy = 0; fy < GAME_H; ++fy)
         for (int fx = 0; fx < GAME_W; ++fx)
@@ -54,6 +61,9 @@ static void place_food(void) {
                 return;
             }
     /* No free cell — game is effectively won; keep food where it is */
+            /**
+             * Render the current snake game state to the screen.
+             */
 }
 
 /* ---- Public API ---- */
@@ -73,6 +83,11 @@ void snake_init(void) {
     place_food();
 }
 
+/**
+ * Handle a key event while in the snake game.
+ * Updates direction or ignores invalid reversals.
+ * @param k key value from read_key()
+ */
 void snake_update(void) {
     if (snake_game.game_over) return;
 

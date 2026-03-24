@@ -1,19 +1,23 @@
 #include "../include/util.h"
 
-/* kstrcmp: standard lexicographic comparison.
- * Returns <0, 0, or >0.  Both a[i]==0 and b[i]==0 must be checked
- * simultaneously so the function correctly returns 0 only when both
- * strings terminate at the same position. */
+/**
+ * Lexicographic string comparison.
+ * @param a first NUL-terminated string
+ * @param b second NUL-terminated string
+ * @return <0 if a<b, 0 if equal, >0 if a>b
+ */
 int kstrcmp(const char* a, const char* b) {
     while (*a && *b && *a == *b) { a++; b++; }
     return (int)(*(unsigned char*)a) - (int)(*(unsigned char*)b);
 }
 
-/* kstrncmp: compare at most n characters.
- * Returns 0 only when the first n characters of both strings match
- * OR both reach their NUL terminator simultaneously within n chars.
- * Previous version returned 0 early on b[i]==0 while a[i] might still
- * differ, masking mismatches (e.g. kstrncmp("abc","ab",3) wrongly == 0). */
+/**
+ * Compare up to `n` characters of two strings.
+ * @param a first string
+ * @param b second string
+ * @param n maximum characters to compare
+ * @return <0 if a<b, 0 if equal up to n, >0 if a>b within n
+ */
 int kstrncmp(const char* a, const char* b, int n) {
     for (int i = 0; i < n; ++i) {
         unsigned char ca = (unsigned char)a[i];
@@ -24,13 +28,21 @@ int kstrncmp(const char* a, const char* b, int n) {
     return 0;
 }
 
-/* kstrcpy: unsafe unbounded copy — use only when dst is guaranteed large enough. */
+/**
+ * Copy NUL-terminated string `src` into `dst` (no bounds checking).
+ * Use only when `dst` is guaranteed to be large enough.
+ */
 void kstrcpy(char* dst, const char* src) {
     while ((*dst++ = *src++));
 }
 
-/* kstrncpy: bounded copy that always NUL-terminates.
- * Requires n > 0; copies at most n-1 characters and writes a NUL byte. */
+/**
+ * Copy at most `n-1` bytes from `src` into `dest` and NUL-terminate.
+ * If n<=0 the function is a no-op.
+ * @param dest destination buffer
+ * @param src source string
+ * @param n size of destination buffer
+ */
 void kstrncpy(char* dest, const char* src, int n) {
     if (n <= 0) return;          /* guard: nothing to write */
     int i = 0;
@@ -41,6 +53,11 @@ void kstrncpy(char* dest, const char* src, int n) {
     dest[i] = '\0';
 }
 
+/**
+ * Return the length of a NUL-terminated string (number of bytes before NUL).
+ * @param s input string
+ * @return length in bytes (excluding NUL)
+ */
 int kstrlen(const char* s) {
     int len = 0;
     while (s[len]) len++;
