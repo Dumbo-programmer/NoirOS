@@ -50,6 +50,9 @@ make run
 - `build/` — Build output
 - `iso/` — ISO image structure
 
+## Documentation
+- [API Reference](api.md) — Generated summary of module and function documentation.
+
 ## License
 NoirOS is released under the MIT License. See the `License` file for details.
 
