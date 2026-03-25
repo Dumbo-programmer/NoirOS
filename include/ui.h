@@ -39,4 +39,7 @@ void show_restart_screen(void);
 void show_shutdown_screen(void);
 void show_sleep_screen(void);
 
+/* Recompute window layout after a screen size change */
+void ui_relayout(void);
+
 #endif

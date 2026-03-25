@@ -143,6 +143,50 @@ void init_filesystem(void) {
             df->readonly = 0;
         }
     }
+        /* Additional sample files per feature spec */
+        if (s_root.file_count < MAX_FILES_PER_DIR) {
+            f = &s_root.files[s_root.file_count++];
+            kstrncpy(f->name, "index.html", MAX_FILENAME);
+            kstrncpy(f->content,
+                     "<html><body><h1>NoirOS</h1><p>Welcome to NoirOS</p></body></html>",
+                     MAX_CONTENT);
+            f->length   = kstrlen(f->content);
+            f->type     = FILE_HTML;
+            f->readonly = 1;
+        }
+
+        if (s_root.file_count < MAX_FILES_PER_DIR) {
+            f = &s_root.files[s_root.file_count++];
+            kstrncpy(f->name, "readme.md", MAX_FILENAME);
+            kstrncpy(f->content,
+                     "# NoirOS\nThis is a sample Markdown file.\n",
+                     MAX_CONTENT);
+            f->length   = kstrlen(f->content);
+            f->type     = FILE_MARKDOWN;
+            f->readonly = 1;
+        }
+
+        if (s_root.file_count < MAX_FILES_PER_DIR) {
+            f = &s_root.files[s_root.file_count++];
+            kstrncpy(f->name, "hello.nc", MAX_FILENAME);
+            kstrncpy(f->content,
+                     "print(\"Hello from Noir C!\")\n",
+                     MAX_CONTENT);
+            f->length   = kstrlen(f->content);
+            f->type     = FILE_NOIRC;
+            f->readonly = 0;
+        }
+
+        if (s_root.file_count < MAX_FILES_PER_DIR) {
+            f = &s_root.files[s_root.file_count++];
+            kstrncpy(f->name, "game.sav", MAX_FILENAME);
+            kstrncpy(f->content,
+                     "SAVED_GAME_DATA_V1\n",
+                     MAX_CONTENT);
+            f->length   = kstrlen(f->content);
+            f->type     = FILE_GAME;
+            f->readonly = 0;
+        }
 }
 
 /* -------- Root/CWD/PWD -------- */
@@ -388,4 +432,30 @@ int fs_append(const char* name, const char* data) {
 void fs_list_counts(int* out_dirs, int* out_files) {
     if (out_dirs)  *out_dirs  = s_cwd->subdir_count;
     if (out_files) *out_files = s_cwd->file_count;
+}
+
+/* Infer file type from a filename's extension. Returns FILE_* constant. */
+u8 fs_type_from_name(const char* name) {
+    if (!name) return FILE_TEXT;
+    int L = kstrlen(name);
+    if (L <= 0) return FILE_TEXT;
+
+    /* find last dot */
+    int dot = -1;
+    for (int i = L - 1; i >= 0; --i) {
+        if (name[i] == '.') { dot = i; break; }
+        if (name[i] == '/' || name[i] == '\\') break; /* no ext in path */
+    }
+    if (dot < 0) return FILE_TEXT;
+
+    const char* ext = &name[dot + 1];
+    /* simple comparisons; kstrcmp expects NUL-terminated strings */
+    if (kstrcmp(ext, "txt") == 0) return FILE_TEXT;
+    if (kstrcmp(ext, "md") == 0)  return FILE_MARKDOWN;
+    if (kstrcmp(ext, "html") == 0) return FILE_HTML;
+    if (kstrcmp(ext, "htm") == 0)  return FILE_HTML;
+    if (kstrcmp(ext, "nc") == 0)   return FILE_NOIRC;
+    if (kstrcmp(ext, "sav") == 0)  return FILE_GAME;
+    if (kstrcmp(ext, "exe") == 0)  return FILE_EXE;
+    return FILE_TEXT;
 }

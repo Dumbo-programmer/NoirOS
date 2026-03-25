@@ -4,16 +4,19 @@
 
 /* ---- Sizes ---- */
 #define MAX_FILENAME 32
-#define MAX_CONTENT  2048
+#define MAX_CONTENT  4096
 
 /* Per-directory limits (memory footprint tight) */
 #define MAX_FILES_PER_DIR  16
 #define MAX_DIRS_PER_DIR   8
 
 /* File types */
-#define FILE_TEXT 0
-#define FILE_EXE  1
-#define FILE_GAME 2
+#define FILE_TEXT     0   /* plain .txt */
+#define FILE_EXE      1   /* binary / executable marker */
+#define FILE_GAME     2   /* game data */
+#define FILE_MARKDOWN 3   /* .md  — rendered with simple heading/bold hints */
+#define FILE_HTML     4   /* .html — rendered as plain text, tags stripped */
+#define FILE_NOIRC    5   /* .nc  — Noir C source, interpreted on run */
 
 /* Error codes */
 #define FS_OK           0
@@ -76,5 +79,8 @@ int fs_append(const char* name, const char* data);
 
 /* ----------  helpers ---------- */
 void fs_list_counts(int* out_dirs, int* out_files);  /* both counts for UI */
+
+/* Infer file type from filename extension */
+u8 fs_type_from_name(const char* name);
 
 #endif 

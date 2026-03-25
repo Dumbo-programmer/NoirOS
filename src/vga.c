@@ -6,6 +6,10 @@
  * MMIO.  All accesses through this pointer go through the volatile path. */
 volatile u16* const vga = (volatile u16*)VGA_ADDR;
 
+/* Runtime screen size (start with compile-time defaults) */
+int SCREEN_W = WIDTH;
+int SCREEN_H = HEIGHT;
+
 static int cursor_x = 0, cursor_y = 0;
 static u8 default_attr = 0x07;
 
@@ -18,16 +22,16 @@ static u8 default_attr = 0x07;
  */
 void vga_putcell(int x, int y, char ch, u8 attr) {
     /* Use WIDTH/HEIGHT constants — never hardcode 80 or 25 here. */
-    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return;
-    vga[y * WIDTH + x] = ((u16)attr << 8) | (u8)ch;
+    if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return;
+    vga[y * SCREEN_W + x] = ((u16)attr << 8) | (u8)ch;
 }
 
 /**
  * Clear the entire VGA text screen and reset cursor position.
  */
 void vga_clear(void) {
-    for (int y = 0; y < HEIGHT; ++y)
-        for (int x = 0; x < WIDTH; ++x)
+    for (int y = 0; y < SCREEN_H; ++y)
+        for (int x = 0; x < SCREEN_W; ++x)
             vga_putcell(x, y, ' ', default_attr);
     cursor_x = cursor_y = 0;
 }
@@ -46,19 +50,19 @@ void term_putc(char c) {
     }
     vga_putcell(cursor_x, cursor_y, c, default_attr);
     cursor_x++;
-    if (cursor_x >= WIDTH) { cursor_x = 0; cursor_y++; }
+    if (cursor_x >= SCREEN_W) { cursor_x = 0; cursor_y++; }
 check_scroll:
     /* Scroll up one line if we fall off the bottom instead of clamping.
      * Clamping silently overwrites the last line — scrolling is correct. */
-    if (cursor_y >= HEIGHT) {
+    if (cursor_y >= SCREEN_H) {
         /* Shift all rows up by one */
-        for (int y = 1; y < HEIGHT; ++y)
-            for (int x = 0; x < WIDTH; ++x)
-                vga[((y - 1) * WIDTH) + x] = vga[(y * WIDTH) + x];
+        for (int y = 1; y < SCREEN_H; ++y)
+            for (int x = 0; x < SCREEN_W; ++x)
+                vga[((y - 1) * SCREEN_W) + x] = vga[(y * SCREEN_W) + x];
         /* Clear the newly exposed bottom row */
-        for (int x = 0; x < WIDTH; ++x)
-            vga_putcell(x, HEIGHT - 1, ' ', default_attr);
-        cursor_y = HEIGHT - 1;
+        for (int x = 0; x < SCREEN_W; ++x)
+            vga_putcell(x, SCREEN_H - 1, ' ', default_attr);
+        cursor_y = SCREEN_H - 1;
     }
 }
 
@@ -116,8 +120,8 @@ void draw_text_in_win(int x, int y, int w, int h,
  * @return ASCII character or space if out of bounds
  */
 char vga_getcell_char(int x, int y) {
-    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return ' ';
-    return (char)(vga[y * WIDTH + x] & 0xFF);
+    if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return ' ';
+    return (char)(vga[y * SCREEN_W + x] & 0xFF);
 }
 
 /**
@@ -125,6 +129,19 @@ char vga_getcell_char(int x, int y) {
  * @return attribute or 0x07 if out of bounds
  */
 unsigned char vga_getcell_attr(int x, int y) {
-    if (x < 0 || x >= WIDTH || y < 0 || y >= HEIGHT) return 0x07;
-    return (unsigned char)((vga[y * WIDTH + x] >> 8) & 0xFF);
+    if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return 0x07;
+    return (unsigned char)((vga[y * SCREEN_W + x] >> 8) & 0xFF);
 }
+
+/* Set runtime screen mode; clears screen and clamps cursor */
+void vga_set_mode(int w, int h) {
+    if (w <= 0 || h <= 0) return;
+    SCREEN_W = w;
+    SCREEN_H = h;
+    if (cursor_x >= SCREEN_W) cursor_x = SCREEN_W - 1;
+    if (cursor_y >= SCREEN_H) cursor_y = SCREEN_H - 1;
+    vga_clear();
+}
+
+int vga_get_width(void) { return SCREEN_W; }
+int vga_get_height(void) { return SCREEN_H; }

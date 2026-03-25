@@ -13,4 +13,9 @@ void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* te
 char vga_getcell_char(int x, int y);
 unsigned char vga_getcell_attr(int x, int y);
 
+/* Runtime mode control */
+void vga_set_mode(int w, int h);
+int vga_get_width(void);
+int vga_get_height(void);
+
 #endif

@@ -3,6 +3,7 @@
 #include "../include/fs.h"
 #include "../include/util.h"
 #include "../include/input.h"
+#include "../include/viewer.h"
 
 static Window explorer_win = {0, 1, 32, 20, " Explorer "};
 /* UI window layout: explorer | viewer + controls | status bar.
@@ -14,6 +15,18 @@ static Window status_win   = {0, 22, WIDTH, 3,  " Status "};
 
 static int explorer_sel = 0;
 static int viewer_scroll = 0;
+
+/* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
+void ui_relayout(void) {
+    /* Proportions derived from original 80x25 layout */
+    int ew = SCREEN_W * 32 / 80; if (ew < 10) ew = 10;
+    int vw = SCREEN_W - ew - 1; if (vw < 10) vw = SCREEN_W - ew;
+
+    explorer_win.x = 0; explorer_win.y = 1; explorer_win.w = ew; explorer_win.h = SCREEN_H - 4;
+    viewer_win.x = explorer_win.w + 1; viewer_win.y = 1; viewer_win.w = vw; viewer_win.h = (SCREEN_H - 4) * 3 / 5;
+    control_win.x = viewer_win.x; control_win.y = viewer_win.y + viewer_win.h; control_win.w = viewer_win.w; control_win.h = (SCREEN_H - 4) - viewer_win.h;
+    status_win.x = 0; status_win.y = SCREEN_H - 3; status_win.w = SCREEN_W; status_win.h = 3;
+}
 
 /* Button definitions for clickable controls */
 typedef struct {
@@ -204,8 +217,8 @@ static void init_power_buttons(void) {
     power_buttons[0].w = btn_w;
     power_buttons[0].h = 1;
     power_buttons[0].text = " Restart(F1) ";
-    power_buttons[0].normal_attr = 0x2F;
-    power_buttons[0].pressed_attr = 0xF2;
+    power_buttons[0].normal_attr = VGA_ATTR(COL_WHITE, COL_GREEN);
+    power_buttons[0].pressed_attr = VGA_ATTR(COL_GREEN, COL_WHITE);
     power_buttons[0].ticks = 0;
     power_buttons[0].callback = show_restart_screen;
     
@@ -215,8 +228,8 @@ static void init_power_buttons(void) {
     power_buttons[1].w = btn_w;
     power_buttons[1].h = 1;
     power_buttons[1].text = " Shut Down(F2) ";
-    power_buttons[1].normal_attr = 0x4F;
-    power_buttons[1].pressed_attr = 0xF4;
+    power_buttons[1].normal_attr = VGA_ATTR(COL_WHITE, COL_RED);
+    power_buttons[1].pressed_attr = VGA_ATTR(COL_RED, COL_WHITE);
     power_buttons[1].ticks = 0;
     power_buttons[1].callback = show_shutdown_screen;
     
@@ -226,8 +239,8 @@ static void init_power_buttons(void) {
     power_buttons[2].w = btn_w;
     power_buttons[2].h = 1;
     power_buttons[2].text = " Sleep(F3) ";
-    power_buttons[2].normal_attr = 0x1F;
-    power_buttons[2].pressed_attr = 0xF1;
+    power_buttons[2].normal_attr = VGA_ATTR(COL_WHITE, COL_BLUE);
+    power_buttons[2].pressed_attr = VGA_ATTR(COL_BLUE, COL_WHITE);
     power_buttons[2].ticks = 0;
     power_buttons[2].callback = show_sleep_screen;
     
@@ -237,7 +250,7 @@ static void init_power_buttons(void) {
 static void draw_controls_window(void) {
     init_power_buttons();
     
-    draw_box(control_win.x, control_win.y, control_win.w, control_win.h, control_win.title, 0x0E, 0x70, 0x07);
+    draw_box(control_win.x, control_win.y, control_win.w, control_win.h, control_win.title, ATTR_PROMPT, ATTR_STATUS, ATTR_NORMAL);
 
     int inner_x = control_win.x + 1;
     int inner_y = control_win.y + 1;
@@ -247,7 +260,7 @@ static void draw_controls_window(void) {
     /* clear inner area */
     for (int yy = 0; yy < inner_h; ++yy)
         for (int xx = 0; xx < inner_w; ++xx)
-            vga_putcell(inner_x + xx, inner_y + yy, ' ', 0x70);
+            vga_putcell(inner_x + xx, inner_y + yy, ' ', ATTR_STATUS);
 
     /* Draw buttons with proper click detection zones */
     for (int i = 0; i < 3; i++) {
@@ -270,10 +283,10 @@ static void draw_controls_window(void) {
         
         /* Draw button border for visual clarity */
         if (btn->x > control_win.x + 1) {
-            vga_putcell(btn->x - 1, btn->y, '[', 0x08);
+            vga_putcell(btn->x - 1, btn->y, '[', ATTR_BORDER);
         }
         if (btn->x + btn->w < control_win.x + control_win.w - 1) {
-            vga_putcell(btn->x + btn->w, btn->y, ']', 0x08);
+            vga_putcell(btn->x + btn->w, btn->y, ']', ATTR_BORDER);
         }
         
         /* Countdown pressed state */
@@ -285,14 +298,14 @@ static void draw_controls_window(void) {
 void ui_draw(void) {
     vga_clear();
     /* Title */
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
     const char* title = "NoirOS";
-    for (int i = 0; title[i] && i < WIDTH - 2; i++) vga_putcell(1 + i, 0, title[i], 0x1F);
+    for (int i = 0; title[i] && i < WIDTH - 2; i++) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
-    draw_box(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, explorer_win.title, 0x0E, 0x70, 0x07);
-    draw_box(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, viewer_win.title, 0x0E, 0x70, 0x07);
+    draw_box(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, explorer_win.title, ATTR_PROMPT, ATTR_STATUS, ATTR_NORMAL);
+    draw_box(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, viewer_win.title, ATTR_PROMPT, ATTR_STATUS, ATTR_NORMAL);
     draw_controls_window();
-    draw_box(status_win.x, status_win.y, status_win.w, status_win.h, status_win.title, 0x9F, 0x70, 0x07);
+    draw_box(status_win.x, status_win.y, status_win.w, status_win.h, status_win.title, ATTR_VIEWER_TITLE, ATTR_STATUS, ATTR_NORMAL);
 
     int dir_count = fs_dir_count();
     int file_count = fs_count();
@@ -301,88 +314,6 @@ void ui_draw(void) {
     else if (explorer_sel >= total) explorer_sel = total - 1;
     draw_explorer_listing(dir_count, file_count, total);
     draw_viewer_content(dir_count, explorer_sel, viewer_scroll);
-void draw_explorer_listing(int dir_count, int file_count, int total) {
-    int e_lines = explorer_win.h - 2;
-    for (int i = 0; i < total && i < e_lines; ++i) {
-        u8 attr = (i == explorer_sel) ? 0x1F : 0x07;
-        char display[40];
-        int p = 0;
-        if (i < dir_count) {
-            struct Dir* d = fs_dir_get(i);
-            append_char(display, &p, 'd', sizeof(display));
-            append_char(display, &p, ' ', sizeof(display));
-            append_str(display, &p, d->name, sizeof(display));
-            append_char(display, &p, '/', sizeof(display));
-        } else {
-            struct File* f = fs_get(i - dir_count);
-            char tc = (f->type == 1) ? '*' : (f->type == 2) ? '>' : (f->readonly ? ' ' : '+');
-            append_char(display, &p, tc, sizeof(display));
-            append_char(display, &p, ' ', sizeof(display));
-            append_str(display, &p, f->name, sizeof(display));
-        }
-        draw_text_in_win(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, 0, i, display, attr);
-    }
-}
-
-void draw_viewer_content(int dir_count, int explorer_sel, int viewer_scroll) {
-    int file_count = fs_count();
-    int total = dir_count + file_count;
-    if (total == 0) {
-        draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, 0, "(empty)", 0x07);
-        return;
-    }
-    if (explorer_sel < dir_count) {
-        struct Dir* d = fs_dir_get(explorer_sel);
-        char linebuf[200];
-        int line = 0;
-        int hb = 0;
-        append_str(linebuf, &hb, "Directory: ", sizeof(linebuf));
-        append_str(linebuf, &hb, d->name, sizeof(linebuf));
-        append_char(linebuf, &hb, '/', sizeof(linebuf));
-        append_str(linebuf, &hb, "  (", sizeof(linebuf));
-        char tmp[32];
-        int_to_dec(tmp, d->file_count);
-        append_str(linebuf, &hb, tmp, sizeof(linebuf));
-        append_str(linebuf, &hb, " files, ", sizeof(linebuf));
-        int_to_dec(tmp, d->subdir_count);
-        append_str(linebuf, &hb, tmp, sizeof(linebuf));
-        append_str(linebuf, &hb, " subdirs)", sizeof(linebuf));
-        draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, linebuf, 0x07);
-        draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, "Use 'cd <name>' or press Enter to open", 0x07);
-        for (int fi = 0; fi < d->subdir_count && line < viewer_win.h - 2; ++fi) {
-            char buf[128]; int bp = 0;
-            append_char(buf, &bp, 'd', sizeof(buf));
-            append_char(buf, &bp, ' ', sizeof(buf));
-            append_str(buf, &bp, d->subdirs[fi]->name, sizeof(buf));
-            append_char(buf, &bp, '/', sizeof(buf));
-            draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, buf, 0x07);
-        }
-        for (int fi = 0; fi < d->file_count && line < viewer_win.h - 2; ++fi) {
-            char buf[128]; int bp = 0;
-            struct File* ff = &d->files[fi];
-            char tc = (ff->type == 1) ? '*' : (ff->type == 2) ? '>' : (ff->readonly ? ' ' : '+');
-            append_char(buf, &bp, tc, sizeof(buf));
-            append_char(buf, &bp, ' ', sizeof(buf));
-            append_str(buf, &bp, ff->name, sizeof(buf));
-            draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, buf, 0x07);
-        }
-    } else {
-        struct File* f = fs_get(explorer_sel - dir_count);
-        const char* p = f->content;
-        char linebuf[200];
-        int max_lines = viewer_win.h - 2;
-        int skip = viewer_scroll;
-        int line_no = 0;
-        while (*p && line_no < skip + max_lines) {
-            int lb = 0;
-            while (*p && *p != '\n' && lb < (viewer_win.w - 3)) linebuf[lb++] = *p++;
-            if (*p == '\n') p++;
-            linebuf[lb] = '\0';
-            if (line_no >= skip) draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line_no - skip, linebuf, 0x07);
-            line_no++;
-        }
-    }
-}
 
     /* Status */
     const char* fname = "none";
@@ -404,8 +335,26 @@ void draw_viewer_content(int dir_count, int explorer_sel, int viewer_scroll) {
 
     const char* user_info = "User: root | File: ";
     int pos = 0;
-    for (int i = 0; user_info[i] && pos < 60; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, user_info[i], 0x07), pos++;
-    for (int i = 0; fname[i] && pos < 70; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, fname[i], 0x0F), pos++;
+    for (int i = 0; user_info[i] && pos < 60; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, user_info[i], ATTR_NORMAL), pos++;
+    for (int i = 0; fname[i] && pos < 70; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, fname[i], ATTR_FILE_TEXT), pos++;
+
+    /* If a file is selected, append a short type label in the status bar */
+    if (total > 0 && explorer_sel >= dir_count) {
+        struct File* ff = fs_get(explorer_sel - dir_count);
+        const char* tlabel = "(file)";
+        if (ff) {
+            switch (ff->type) {
+                case FILE_TEXT: tlabel = "(txt)"; break;
+                case FILE_EXE:  tlabel = "(exe)"; break;
+                case FILE_GAME: tlabel = "(game)"; break;
+                case FILE_MARKDOWN: tlabel = "(md)"; break;
+                case FILE_HTML: tlabel = "(html)"; break;
+                case FILE_NOIRC: tlabel = "(noirc)"; break;
+                default: tlabel = "(file)"; break;
+            }
+            for (int i = 0; tlabel[i] && pos < 70; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, tlabel[i], ATTR_PROMPT), pos++;
+        }
+    }
 }
 
 void ui_clear(void) {
@@ -430,8 +379,80 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
     for (int i = 0; i < len && start_x + i < WIDTH; i++)
         vga_putcell(start_x + i, row, s[i], attr);
 }
+    /* ---- explorer/viewer implementations ---- */
+    void draw_explorer_listing(int dir_count, int file_count, int total) {
+        int e_lines = explorer_win.h - 2;
+        for (int i = 0; i < total && i < e_lines; ++i) {
+            u8 attr = (i == explorer_sel) ? ATTR_SELECTED : ATTR_NORMAL;
+            char display[40];
+            int p = 0;
+            if (i < dir_count) {
+                struct Dir* d = fs_dir_get(i);
+                append_char(display, &p, 'd', sizeof(display));
+                append_char(display, &p, ' ', sizeof(display));
+                append_str(display, &p, d->name, sizeof(display));
+                append_char(display, &p, '/', sizeof(display));
+            } else {
+                struct File* f = fs_get(i - dir_count);
+                char tc = (f->type == FILE_EXE) ? '*' : (f->type == FILE_GAME) ? '>' : (f->readonly ? ' ' : '+');
+                append_char(display, &p, tc, sizeof(display));
+                append_char(display, &p, ' ', sizeof(display));
+                append_str(display, &p, f->name, sizeof(display));
+            }
+            draw_text_in_win(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, 0, i, display, attr);
+        }
+    }
 
-/* Draw a count-down ticker row and wait ~1 s, scanning ESC each ~100 ms.
+    void draw_viewer_content(int dir_count, int explorer_sel, int viewer_scroll) {
+        int file_count = fs_count();
+        int total = dir_count + file_count;
+        if (total == 0) {
+            draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, 0, "(empty)", ATTR_NORMAL);
+            return;
+        }
+        if (explorer_sel < dir_count) {
+            struct Dir* d = fs_dir_get(explorer_sel);
+            char linebuf[200];
+            int line = 0;
+            int hb = 0;
+            append_str(linebuf, &hb, "Directory: ", sizeof(linebuf));
+            append_str(linebuf, &hb, d->name, sizeof(linebuf));
+            append_char(linebuf, &hb, '/', sizeof(linebuf));
+            append_str(linebuf, &hb, "  (", sizeof(linebuf));
+            char tmp[32];
+            int_to_dec(tmp, d->file_count);
+            append_str(linebuf, &hb, tmp, sizeof(linebuf));
+            append_str(linebuf, &hb, " files, ", sizeof(linebuf));
+            int_to_dec(tmp, d->subdir_count);
+            append_str(linebuf, &hb, tmp, sizeof(linebuf));
+            append_str(linebuf, &hb, " subdirs)", sizeof(linebuf));
+            draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, linebuf, ATTR_NORMAL);
+            draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, "Use 'cd <name>' or press Enter to open", ATTR_NORMAL);
+            for (int fi = 0; fi < d->subdir_count && line < viewer_win.h - 2; ++fi) {
+                char buf[128]; int bp = 0;
+                append_char(buf, &bp, 'd', sizeof(buf));
+                append_char(buf, &bp, ' ', sizeof(buf));
+                append_str(buf, &bp, d->subdirs[fi]->name, sizeof(buf));
+                append_char(buf, &bp, '/', sizeof(buf));
+                draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, buf, ATTR_DIR);
+            }
+            for (int fi = 0; fi < d->file_count && line < viewer_win.h - 2; ++fi) {
+                char buf[128]; int bp = 0;
+                struct File* ff = &d->files[fi];
+                char tc = (ff->type == 1) ? '*' : (ff->type == 2) ? '>' : (ff->readonly ? ' ' : '+');
+                append_char(buf, &bp, tc, sizeof(buf));
+                append_char(buf, &bp, ' ', sizeof(buf));
+                append_str(buf, &bp, ff->name, sizeof(buf));
+                draw_text_in_win(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, 0, line++, buf, ATTR_FILE_TEXT);
+            }
+        } else {
+            struct File* f = fs_get(explorer_sel - dir_count);
+            /* Delegate rendering to viewer module */
+            viewer_draw(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, f, viewer_scroll);
+        }
+    }
+
+    /* Draw a count-down ticker row and wait ~1 s, scanning ESC each ~100 ms.
  * Returns 1 if ESC was pressed, 0 otherwise.
  * `row` is the screen row for the countdown message.
  * `attr_bg`/`attr_fg` are the fill and text color attributes. */
@@ -466,15 +487,15 @@ void show_restart_screen(void) {
 
     /* Gradient background */
     for (int y = 0; y < HEIGHT; y++) {
-        unsigned char attr = 0x20 + (y / 3);
-        if (attr > 0x2F) attr = 0x2F;
+        unsigned char attr = (unsigned char)(VGA_ATTR(COL_BLACK, COL_GREEN) + (y / 3));
+        if (attr > VGA_ATTR(COL_WHITE, COL_GREEN)) attr = VGA_ATTR(COL_WHITE, COL_GREEN);
         for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
     }
 
     /* Dialog box centered on screen */
     int bx = (WIDTH  - 30) / 2;
     int by = (HEIGHT - 10) / 2;
-    draw_box(bx, by, 30, 10, " RESTARTING ", 0x2F, 0x2E, 0x20);
+    draw_box(bx, by, 30, 10, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_GREEN), VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_BLACK, COL_GREEN));
 
     const char* lines[] = {
         "Restarting NoirOS...", "",
@@ -487,22 +508,22 @@ void show_restart_screen(void) {
     int num_lines = 8;
     int text_start_row = by + 1;
     for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
-        draw_centered(text_start_row + i, lines[i], 0x2F);
+        draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_GREEN));
 
     int ticker_row = by + num_lines + 1;
     if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
 
     for (int cd = 3; cd > 0; cd--)
-        if (countdown_second(ticker_row, 0x2E, 0x2F, "Restarting in ", cd))
+        if (countdown_second(ticker_row, VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_WHITE, COL_GREEN), "Restarting in ", cd))
             { ui_draw(); return; }
 
     /* Commit — jump back to kernel entry point */
     vga_clear();
     for (int y = 0; y < HEIGHT; y++)
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x0F);
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
     int bx2 = (WIDTH - 20) / 2, by2 = (HEIGHT - 5) / 2;
-    draw_box(bx2, by2, 20, 5, " RESTARTING ", 0x4F, 0x4E, 0x40);
-    draw_centered(by2 + 2, "Restarting kernel...", 0x4F);
+    draw_box(bx2, by2, 20, 5, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_GREEN), VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_BLACK, COL_GREEN));
+    draw_centered(by2 + 2, "Restarting kernel...", VGA_ATTR(COL_WHITE, COL_GREEN));
     for (volatile int i = 0; i < 10000000; i++);
 
     /* Jump to kernel load address — matches linker.ld ENTRY address */
@@ -515,14 +536,14 @@ void show_shutdown_screen(void) {
     vga_clear();
 
     for (int y = 0; y < HEIGHT; y++) {
-        unsigned char attr = 0x40 + (y / 3);
-        if (attr > 0x4F) attr = 0x4F;
+        unsigned char attr = (unsigned char)(VGA_ATTR(COL_BLACK, COL_RED) + (y / 3));
+        if (attr > VGA_ATTR(COL_WHITE, COL_RED)) attr = VGA_ATTR(COL_WHITE, COL_RED);
         for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
     }
 
     int bx = (WIDTH  - 30) / 2;
     int by = (HEIGHT - 12) / 2;
-    draw_box(bx, by, 30, 12, " SHUTTING DOWN ", 0x4F, 0x4E, 0x40);
+    draw_box(bx, by, 30, 12, " SHUTTING DOWN ", VGA_ATTR(COL_WHITE, COL_RED), VGA_ATTR(COL_LIGHT_RED, COL_RED), VGA_ATTR(COL_BLACK, COL_RED));
 
     const char* lines[] = {
         "Shutting down NoirOS...", "",
@@ -536,13 +557,13 @@ void show_shutdown_screen(void) {
     int num_lines = 9;
     int text_start_row = by + 1;
     for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
-        draw_centered(text_start_row + i, lines[i], 0x4F);
+        draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_RED));
 
     int ticker_row = by + num_lines + 1;
     if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
 
     for (int cd = 3; cd > 0; cd--)
-        if (countdown_second(ticker_row, 0x4E, 0x4F, "Bye in ", cd))
+        if (countdown_second(ticker_row, VGA_ATTR(COL_LIGHT_RED, COL_RED), VGA_ATTR(COL_WHITE, COL_RED), "Bye in ", cd))
             { ui_draw(); return; }
 
     /* Progress through shutdown stages */
@@ -560,14 +581,14 @@ void show_shutdown_screen(void) {
 
     for (int s = 0; s < 5; s++) {
         /* Clear and redraw stage text */
-        for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, stage_row, ' ', 0x4E);
-        draw_centered(stage_row, stages[s], 0x4F);
+        for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, stage_row, ' ', VGA_ATTR(COL_YELLOW, COL_RED));
+        draw_centered(stage_row, stages[s], VGA_ATTR(COL_WHITE, COL_RED));
 
         /* Progress bar */
         int progress = (s + 1) * bar_w / 5;
         for (int x = 0; x < bar_w; x++) {
             char ch   = (x < progress) ? '#' : '-';
-            unsigned char at = (x < progress) ? 0x4C : 0x47;
+            unsigned char at = (x < progress) ? VGA_ATTR(COL_LIGHT_RED, COL_RED) : VGA_ATTR(COL_LIGHT_GREY, COL_RED);
             vga_putcell(bar_x + x, bar_row, ch, at);
         }
         for (volatile int i = 0; i < 5000000; i++);
@@ -576,10 +597,10 @@ void show_shutdown_screen(void) {
     /* Final halt screen */
     vga_clear();
     for (int y = 0; y < HEIGHT; y++)
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x00);
+        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_BLACK, COL_BLACK));
     int bx2 = (WIDTH - 30) / 2, by2 = (HEIGHT - 5) / 2;
-    draw_box(bx2, by2, 30, 5, " GOODBYE! ", 0x70, 0x07, 0x00);
-    draw_centered(by2 + 2, "Safe to power off now", 0x70);
+    draw_box(bx2, by2, 30, 5, " GOODBYE! ", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY), ATTR_NORMAL, VGA_ATTR(COL_BLACK, COL_BLACK));
+    draw_centered(by2 + 2, "Safe to power off now", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY));
     for (volatile int i = 0; i < 20000000; i++);
 
     /* Halt: disable interrupts and spin — correct x86 shutdown for bare metal/QEMU */
@@ -598,7 +619,7 @@ void show_sleep_screen(void) {
 
     int bx = (WIDTH  - 30) / 2;
     int by = (HEIGHT - 10) / 2;
-    draw_box(bx, by, 30, 10, " GOING TO SLEEP ", 0x1F, 0x1E, 0x10);
+    draw_box(bx, by, 30, 10, " GOING TO SLEEP ", VGA_ATTR(COL_WHITE, COL_BLUE), VGA_ATTR(COL_YELLOW, COL_BLUE), VGA_ATTR(COL_BLACK, COL_BLUE));
 
     const char* lines[] = {
         "Time for a nap...", "",
@@ -645,8 +666,8 @@ void show_sleep_screen(void) {
         for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x00);
     {
         int sbx = (WIDTH - 10) / 2, sby = HEIGHT / 2 - 1;
-        draw_box(sbx, sby, 10, 3, "", 0x08, 0x08, 0x00);
-        draw_centered(sby + 1, "Zzz", 0x08);
+        draw_box(sbx, sby, 10, 3, "", ATTR_BORDER, ATTR_BORDER, VGA_ATTR(COL_BLACK, COL_BLACK));
+        draw_centered(sby + 1, "Zzz", ATTR_BORDER);
     }
 
     /* HLT: CPU sleeps until the next interrupt (keyboard generates IRQ1).

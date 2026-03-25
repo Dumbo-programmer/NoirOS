@@ -127,9 +127,20 @@ void editor_draw(void) {
         int col      = editor_cursor_x;
         int line_len = get_line_length_at_off(off);
         if (col > line_len) col = line_len;
+        /* Compute screen column expanding tabs so cursor aligns with rendered text */
+        int screen_col = 0;
+        for (int i = 0; i < col; ++i) {
+            char ch = editor_buffer[off + i];
+            if (ch == '\t') {
+                int spaces = 4 - (screen_col % 4);
+                screen_col += spaces;
+            } else {
+                screen_col += 1;
+            }
+        }
         char cur_ch = (col < line_len) ? editor_buffer[off + col] : ' ';
         /* Content rows start at screen row 1 (row 0 is the title bar). */
-        vga_putcell(1 + col, 1 + cursor_screen_line, cur_ch, 0x70);
+        vga_putcell(1 + screen_col, 1 + cursor_screen_line, cur_ch, 0x70);
     }
 
     /* Status bar: filename + modified flag */

@@ -58,6 +58,22 @@ static int handle_command_input(int explorer_sel, int *mode) {
     }
 
     if (input[0]) {
+        /* mode change: mode <width> <height> */
+        if (kstrncmp(input, "mode ", 5) == 0) {
+            int w = 0, h = 0;
+            /* simple parse: two integers separated by space */
+            int i = 5;
+            while (input[i] == ' ') i++;
+            while (input[i] >= '0' && input[i] <= '9') { w = w * 10 + (input[i] - '0'); i++; }
+            while (input[i] == ' ') i++;
+            while (input[i] >= '0' && input[i] <= '9') { h = h * 10 + (input[i] - '0'); i++; }
+            if (w > 0 && h > 0) {
+                vga_set_mode(w, h);
+                ui_relayout();
+                ui_draw();
+            }
+            return explorer_sel;
+        }
         if (kstrcmp(input, "help") == 0) {
             for (int i = 0; i < fs_count(); ++i) {
                 if (kstrcmp(fs_get(i)->name, "help.txt") == 0) {
@@ -93,6 +109,8 @@ static int handle_command_input(int explorer_sel, int *mode) {
  */
 void kernel_main(void) {
     init_filesystem();
+    /* Ensure UI layout matches runtime VGA mode */
+    ui_relayout();
     ui_draw();
 
     int explorer_sel = ui_get_selected();
