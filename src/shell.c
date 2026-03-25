@@ -6,6 +6,7 @@
 #include "../include/util.h"
 #include "../include/editor.h"
 #include "../include/game_snake.h"
+#include "../include/noirc.h"
 #include "../include/shell.h"
 #include "../include/mode.h"
 /* NOTE: <stddef.h> removed — this is a freestanding kernel with no hosted headers.
@@ -200,6 +201,7 @@ static int cmd_cd(const char* args, int* mode, int* explorer_sel) {
     int r = fs_chdir(args);
     if (r == FS_OK) {
         if (explorer_sel) *explorer_sel = 0;
+        ui_reset_explorer_scroll();
         ui_set_selected(0);
         ui_draw();
         return 1;
@@ -212,7 +214,11 @@ static int cmd_cd(const char* args, int* mode, int* explorer_sel) {
 static int cmd_mkdir(const char* args, int* mode, int* explorer_sel) {
     (void)mode; (void)explorer_sel;
     if (!args || !args[0]) { show_error("Usage: mkdir <name>"); return 0; }
-    int r = fs_mkdir(args);
+    char name[MAX_FILENAME]; int i = 0;
+    while (args[i] && args[i] != ' ' && i < (int)sizeof(name) - 1) { name[i] = args[i]; i++; }
+    name[i] = '\0';
+    if (kstrlen(name) == 0) { show_error("Usage: mkdir <name>"); return 0; }
+    int r = fs_mkdir(name);
     if (r == FS_OK) { show_message("Directory created", 0x0A); ui_draw(); return 1; }
     if (r == FS_ERR_EXISTS)  show_error("Directory already exists");
     else if (r == FS_ERR_NOSPACE) show_error("No space for directory");
@@ -223,7 +229,11 @@ static int cmd_mkdir(const char* args, int* mode, int* explorer_sel) {
 static int cmd_rmdir(const char* args, int* mode, int* explorer_sel) {
     (void)mode; (void)explorer_sel;
     if (!args || !args[0]) { show_error("Usage: rmdir <name>"); return 0; }
-    int r = fs_rmdir(args);
+    char name[MAX_FILENAME]; int i = 0;
+    while (args[i] && args[i] != ' ' && i < (int)sizeof(name) - 1) { name[i] = args[i]; i++; }
+    name[i] = '\0';
+    if (kstrlen(name) == 0) { show_error("Usage: rmdir <name>"); return 0; }
+    int r = fs_rmdir(name);
     if (r == FS_OK) { show_message("Directory removed", 0x0A); ui_draw(); return 1; }
     if (r == FS_ERR_DIRNOTEMPTY) show_error("Directory not empty");
     else if (r == FS_ERR_NOTFOUND) show_error("Directory not found");
@@ -240,13 +250,28 @@ static int cmd_new(const char* args, int* mode, int* explorer_sel) {
         { name[i] = args[i]; i++; }
     name[i] = '\0';
     while (args[i] == ' ') i++;
-    if (args[i] >= '0' && args[i] <= '2') t = args[i] - '0';
+    if (args[i] >= '0' && args[i] <= '3') t = args[i] - '0';
     if (kstrlen(name) == 0 || t < 0) { show_error("Usage: new <name> <type:0-2>"); return 0; }
     int r = fs_create(name, (u8)t);
     if (r == FS_OK) { show_message("File created", 0x0A); ui_draw(); return 1; }
     if (r == FS_ERR_EXISTS) show_error("File already exists");
     else if (r == FS_ERR_NOSPACE) show_error("No space for file");
     else show_error("Failed to create file");
+    return 0;
+}
+
+static int cmd_run(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    if (!args || !args[0]) { show_error("Usage: run <file.nc>"); return 0; }
+    for (int i = 0; i < fs_count(); ++i) {
+        if (kstrcmp(fs_get(i)->name, args) == 0) {
+            struct File* f = fs_get(i);
+            if (f->type != FILE_NOIRC) { show_error("Not a .nc file"); return 0; }
+            noirc_run(f);
+            return 1;
+        }
+    }
+    show_error("File not found");
     return 0;
 }
 
@@ -286,6 +311,7 @@ static const shell_command_t commands[] = {
     {"clear", "Redraw screen",             cmd_clear},
     {"cls",   "Redraw screen",             cmd_clear},
     {"info",  "System information",         cmd_info},
+    {"run",   "Run Noir C file",            cmd_run},
     {"exit",  "Return to browser",          cmd_exit},
     {"quit",  "Return to browser",          cmd_exit},
     {NULL, NULL, NULL}  /* sentinel — checked with commands[i].name != NULL */
@@ -422,6 +448,71 @@ static int shell_readline(const char* prompt, char* out, int outsz) {
     }
 }
 
+/* Like shell_readline but with a preloaded first key. If first_key is 0,
+ * behaves like shell_readline. Otherwise the first iteration will process
+ * `first_key` as if it was returned by read_key(), then continue reading.
+ */
+static int shell_readline_preloaded(const char* prompt, char* out, int outsz, int first_key) {
+    /* Clear the status row */
+    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+
+    /* Draw prompt */
+    int pi = 0;
+    for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
+
+    const int prompt_end = 1 + pi;
+    int cx   = prompt_end;
+    int ipos = 0;
+    int hist_pos = history_count;
+
+    int pk = first_key; /* preloaded key; 0 means none */
+
+    while (1) {
+        int ch;
+        if (pk) { ch = pk; pk = 0; }
+        else ch = read_key();
+
+        if (ch == '\n' || ch == '\r') {
+            out[ipos] = '\0';
+            return 1;
+        }
+
+        if (ch == K_ESC) {
+            out[0] = '\0';
+            ui_draw();
+            return 0;
+        }
+
+        if (ch == '\b') {
+            if (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+            continue;
+        }
+
+        if (ch == K_ARROW_UP) {
+            if (history_count == 0) continue;
+            if (hist_pos > 0) hist_pos--;
+            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+            const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+            for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+            continue;
+        }
+
+        if (ch == K_ARROW_DOWN) {
+            if (history_count == 0) continue;
+            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+            if (hist_pos < history_count) hist_pos++;
+            if (hist_pos < history_count) {
+                const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+                for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+            }
+            continue;
+        }
+
+        if (ch >= 32 && ch <= 126) {
+            if (ipos < outsz - 1 && cx < WIDTH - 1) { out[ipos++] = (char)ch; vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F); }
+        }
+    }
+}
 /* ================================================================
  * Command dispatch
  * ================================================================ */
@@ -461,9 +552,9 @@ static int execute_command(const char* input, int* mode, int* explorer_sel) {
  * Public shell loop — called each iteration from kernel_main
  * ================================================================ */
 
-int shell_loop(int explorer_sel_in, int* mode) {
+int shell_loop(int explorer_sel_in, int* mode, int first_key) {
     int explorer_sel = explorer_sel_in;
-    int k = read_key();
+    int k = first_key;
 
     ui_handle_key(k);   /* let UI react to Fn / button presses */
 
@@ -494,7 +585,7 @@ int shell_loop(int explorer_sel_in, int* mode) {
         ui_draw();
     } else if (k == '\n' || k == '\r') {
         char input[MAX_CMD_LEN];
-        if (shell_readline("cmd> ", input, sizeof(input)) && input[0]) {
+        if (shell_readline_preloaded("cmd> ", input, sizeof(input), 0) && input[0]) {
             add_to_history(input);
             execute_command(input, mode, &explorer_sel);
         }
@@ -502,4 +593,16 @@ int shell_loop(int explorer_sel_in, int* mode) {
     }
 
     return ui_get_selected();
+}
+
+/* Public helper: open the command prompt immediately and execute one command. */
+int shell_open_prompt(int explorer_sel_in, int* mode) {
+    int explorer_sel = explorer_sel_in;
+    char input[MAX_CMD_LEN];
+    if (shell_readline_preloaded("cmd> ", input, sizeof(input), 0) && input[0]) {
+        add_to_history(input);
+        execute_command(input, mode, &explorer_sel);
+    }
+    ui_draw();
+    return explorer_sel;
 }

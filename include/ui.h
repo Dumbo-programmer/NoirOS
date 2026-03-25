@@ -25,6 +25,17 @@ void ui_scroll_viewer(int delta);
 void ui_clear(void);
 int ui_selected_file_index(void);
 
+/* Explorer scroll reset (used after cd) */
+void ui_reset_explorer_scroll(void);
+
+/* Panel focus */
+int  ui_get_active_panel(void);
+void ui_toggle_active_panel(void);
+
+/* Page sizes for kernel navigation */
+int ui_explorer_page_size(void);
+int ui_viewer_page_size(void);
+
 /* Button callback setters */
 void ui_set_restart_callback(void (*cb)(void));
 void ui_set_shutdown_callback(void (*cb)(void));

@@ -12,6 +12,11 @@ static inline u8 inb(u16 port) {
     return val;
 }
 
+/* Debug state (placed here so functions can reference them) */
+static int input_debug = 0;
+static int last_scancode = 0;
+static int last_key = 0;
+
 /* kb_read_scancode: read one byte from the keyboard controller.
  * Spins until the output-buffer-full bit (bit 0) of the status register
  * is set.  A timeout counter is added so a broken/absent keyboard cannot
@@ -21,7 +26,12 @@ u8 kb_read_scancode(void) {
      * at typical CPU speeds (tens of ms headroom). */
     for (volatile int timeout = 100000; timeout > 0; --timeout) {
         if (inb(0x64) & 0x01)
-            return inb(0x60);
+            {
+                u8 val = inb(0x60);
+                /* record last scancode for debug */
+                last_scancode = val;
+                return val;
+            }
     }
     return 0; /* timeout — return a safe no-op value */
 }
@@ -33,6 +43,7 @@ static struct {
     u8 alt_pressed   : 1;
     u8 caps_lock     : 1;
 } kb_state = {0};
+
 
 /* Scancode Set 1 maps (US QWERTY) */
 static const char scancode_map_lower[128] = {
@@ -91,6 +102,9 @@ static const char scancode_map_upper[128] = {
 int read_key(void) {
     u8 sc = kb_read_scancode();
 
+    /* record raw scancode for debug */
+    last_scancode = sc;
+
     /* ---- Extended (E0-prefixed) scancodes ---- */
     if (sc == 0xE0) {
         sc = kb_read_scancode();
@@ -111,6 +125,8 @@ int read_key(void) {
         if (sc == 0x4D) return K_ARROW_RIGHT;
         if (sc == 0x49) return K_PAGE_UP;
         if (sc == 0x51) return K_PAGE_DOWN;
+        if (sc == 0x47) return K_HOME;
+        if (sc == 0x4F) return K_END;
         if (sc == 0x1D) { kb_state.ctrl_pressed = 1; return 0; } /* R-Ctrl */
         if (sc == 0x38) { kb_state.alt_pressed  = 1; return 0; } /* R-Alt  */
         return 0;
@@ -161,11 +177,17 @@ int read_key(void) {
             if (ch >= 'a' && ch <= 'z') return ch - 'a' + 1;
             if (ch >= 'A' && ch <= 'Z') return ch - 'A' + 1;
         }
+        last_key = (int)ch;
         return ch;
     }
-
+    last_key = 0;
     return 0;
 }
+
+void input_toggle_debug(void) { input_debug = !input_debug; }
+int input_debug_enabled(void) { return input_debug; }
+int input_get_last_scancode(void) { return last_scancode; }
+int input_get_last_key(void) { return last_key; }
 
 /**
  * Query modifier and lock states.

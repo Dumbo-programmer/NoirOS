@@ -15,6 +15,9 @@ static Window status_win   = {0, 22, WIDTH, 3,  " Status "};
 
 static int explorer_sel = 0;
 static int viewer_scroll = 0;
+static int explorer_scroll = 0;
+/* 0 = explorer panel has focus, 1 = viewer panel has focus */
+static int active_panel = 0;
 
 /* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
 void ui_relayout(void) {
@@ -47,6 +50,9 @@ static int power_buttons_initialized = 0;
 
 /* Forward declaration */
 static void init_power_buttons(void);
+/* Forward declarations for internal draw helpers */
+static void draw_explorer_listing(int dir_count, int file_count, int total);
+static void draw_viewer_content(int dir_count);
 
 /* -------- tiny helpers (no stdio) -------- */
 static void append_str(char *buf, int *p, const char *s, int max) {
@@ -57,22 +63,7 @@ static void append_char(char *buf, int *p, char c, int max) {
     if (*p < max - 1) buf[(*p)++] = c;
     buf[*p] = '\0';
 }
-static int int_to_dec(char *out, int val) {
-    if (val == 0) { out[0] = '0'; out[1] = '\0'; return 1; }
-    char tmp[16];
-    int tp = 0;
-    int neg = 0;
-    if (val < 0) { neg = 1; val = -val; }
-    while (val > 0 && tp < (int)sizeof(tmp)) {
-        tmp[tp++] = '0' + (val % 10);
-        val /= 10;
-    }
-    int pos = 0;
-    if (neg) out[pos++] = '-';
-    for (int i = tp - 1; i >= 0; --i) out[pos++] = tmp[i];
-    out[pos] = '\0';
-    return pos;
-}
+
 
 /* -------- selection & viewer helpers -------- */
 void ui_set_selected(int sel) {
@@ -83,6 +74,17 @@ void ui_set_selected(int sel) {
     if (sel < 0) sel = 0;
     if (sel >= total) sel = total - 1;
     explorer_sel = sel;
+
+    /* Keep selected item inside the visible window */
+    int e_lines = explorer_win.h - 2;
+    if (explorer_sel < explorer_scroll)
+        explorer_scroll = explorer_sel;
+    if (explorer_sel >= explorer_scroll + e_lines)
+        explorer_scroll = explorer_sel - e_lines + 1;
+    if (explorer_scroll < 0) explorer_scroll = 0;
+
+    /* Reset viewer scroll whenever selection changes */
+    viewer_scroll = 0;
 }
 int ui_get_selected(void) { return explorer_sel; }
 
@@ -95,6 +97,20 @@ int ui_selected_file_index(void) {
     if (explorer_sel < dir_count) return -1;
     return explorer_sel - dir_count;
 }
+
+/* Reset explorer scroll (called after changing directory) */
+void ui_reset_explorer_scroll(void) {
+    explorer_scroll = 0;
+    viewer_scroll = 0;
+}
+
+/* Panel focus accessors */
+int ui_get_active_panel(void) { return active_panel; }
+void ui_toggle_active_panel(void) { active_panel = !active_panel; }
+
+/* Page sizes used by kernel navigation */
+int ui_explorer_page_size(void) { return explorer_win.h - 2; }
+int ui_viewer_page_size(void) { return viewer_win.h - 2; }
 
 /* Legacy callback setters (kept for compatibility) */
 void ui_set_restart_callback(void (*cb)(void)) {
@@ -166,13 +182,13 @@ void ui_handle_mouse_click(int x, int y, int button) {
     if (x >= explorer_win.x + 1 && x < explorer_win.x + explorer_win.w - 1 &&
         y >= explorer_win.y + 1 && y < explorer_win.y + explorer_win.h - 1) {
         
-        int clicked_line = y - (explorer_win.y + 1);
+        int clicked_row = y - (explorer_win.y + 1);
         int dir_count = fs_dir_count();
         int file_count = fs_count();
         int total = dir_count + file_count;
-        
-        if (clicked_line < total) {
-            explorer_sel = clicked_line;
+        int clicked_index = explorer_scroll + clicked_row;
+        if (clicked_index < total) {
+            ui_set_selected(clicked_index);
             ui_draw(); /* Refresh to show new selection */
         }
         return;
@@ -302,8 +318,10 @@ void ui_draw(void) {
     const char* title = "NoirOS";
     for (int i = 0; title[i] && i < WIDTH - 2; i++) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
-    draw_box(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, explorer_win.title, ATTR_PROMPT, ATTR_STATUS, ATTR_NORMAL);
-    draw_box(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, viewer_win.title, ATTR_PROMPT, ATTR_STATUS, ATTR_NORMAL);
+    u8 exp_border = (active_panel == 0) ? ATTR_TITLE : ATTR_BORDER;
+    u8 view_border = (active_panel == 1) ? ATTR_TITLE : ATTR_BORDER;
+    draw_box(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, explorer_win.title, ATTR_PROMPT, exp_border, ATTR_NORMAL);
+    draw_box(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, viewer_win.title, ATTR_PROMPT, view_border, ATTR_NORMAL);
     draw_controls_window();
     draw_box(status_win.x, status_win.y, status_win.w, status_win.h, status_win.title, ATTR_VIEWER_TITLE, ATTR_STATUS, ATTR_NORMAL);
 
@@ -313,7 +331,7 @@ void ui_draw(void) {
     if (total == 0) explorer_sel = 0;
     else if (explorer_sel >= total) explorer_sel = total - 1;
     draw_explorer_listing(dir_count, file_count, total);
-    draw_viewer_content(dir_count, explorer_sel, viewer_scroll);
+    draw_viewer_content(dir_count);
 
     /* Status */
     const char* fname = "none";
@@ -333,27 +351,28 @@ void ui_draw(void) {
         fname = fnamebuf;
     }
 
-    const char* user_info = "User: root | File: ";
-    int pos = 0;
-    for (int i = 0; user_info[i] && pos < 60; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, user_info[i], ATTR_NORMAL), pos++;
-    for (int i = 0; fname[i] && pos < 70; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, fname[i], ATTR_FILE_TEXT), pos++;
+    /* Status line 1: current path */
+    char cwd_buf[64];
+    fs_pwd(cwd_buf, sizeof(cwd_buf));
+    {
+        const char* label = "Path: ";
+        int p = 0;
+        for (int i = 0; label[i] && p < WIDTH - 2; i++)
+            vga_putcell(status_win.x + 1 + p, status_win.y + 1, label[i], ATTR_STATUS), p++;
+        for (int i = 0; cwd_buf[i] && p < WIDTH - 2; i++)
+            vga_putcell(status_win.x + 1 + p, status_win.y + 1, cwd_buf[i], ATTR_PROMPT), p++;
+        for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 1, ' ', ATTR_STATUS);
+    }
 
-    /* If a file is selected, append a short type label in the status bar */
-    if (total > 0 && explorer_sel >= dir_count) {
-        struct File* ff = fs_get(explorer_sel - dir_count);
-        const char* tlabel = "(file)";
-        if (ff) {
-            switch (ff->type) {
-                case FILE_TEXT: tlabel = "(txt)"; break;
-                case FILE_EXE:  tlabel = "(exe)"; break;
-                case FILE_GAME: tlabel = "(game)"; break;
-                case FILE_MARKDOWN: tlabel = "(md)"; break;
-                case FILE_HTML: tlabel = "(html)"; break;
-                case FILE_NOIRC: tlabel = "(noirc)"; break;
-                default: tlabel = "(file)"; break;
-            }
-            for (int i = 0; tlabel[i] && pos < 70; ++i) vga_putcell(status_win.x + 1 + pos, status_win.y + 1, tlabel[i], ATTR_PROMPT), pos++;
-        }
+    /* Status line 2: selected item name */
+    {
+        const char* sel_label = "Sel:  ";
+        int p = 0;
+        for (int i = 0; sel_label[i] && p < WIDTH - 2; i++)
+            vga_putcell(status_win.x + 1 + p, status_win.y + 2, sel_label[i], ATTR_STATUS), p++;
+        for (int i = 0; fname[i] && p < WIDTH - 2; i++)
+            vga_putcell(status_win.x + 1 + p, status_win.y + 2, fname[i], ATTR_NORMAL), p++;
+        for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 2, ' ', ATTR_STATUS);
     }
 }
 
@@ -380,30 +399,32 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
         vga_putcell(start_x + i, row, s[i], attr);
 }
     /* ---- explorer/viewer implementations ---- */
-    void draw_explorer_listing(int dir_count, int file_count, int total) {
+    static void draw_explorer_listing(int dir_count, int file_count, int total) {
         int e_lines = explorer_win.h - 2;
-        for (int i = 0; i < total && i < e_lines; ++i) {
-            u8 attr = (i == explorer_sel) ? ATTR_SELECTED : ATTR_NORMAL;
+        for (int row = 0; row < e_lines; ++row) {
+            int idx = explorer_scroll + row;
+            if (idx >= total) break;
+            u8 attr = (idx == explorer_sel) ? ATTR_SELECTED : ATTR_NORMAL;
             char display[40];
             int p = 0;
-            if (i < dir_count) {
-                struct Dir* d = fs_dir_get(i);
+            if (idx < dir_count) {
+                struct Dir* d = fs_dir_get(idx);
                 append_char(display, &p, 'd', sizeof(display));
                 append_char(display, &p, ' ', sizeof(display));
                 append_str(display, &p, d->name, sizeof(display));
                 append_char(display, &p, '/', sizeof(display));
             } else {
-                struct File* f = fs_get(i - dir_count);
+                struct File* f = fs_get(idx - dir_count);
                 char tc = (f->type == FILE_EXE) ? '*' : (f->type == FILE_GAME) ? '>' : (f->readonly ? ' ' : '+');
                 append_char(display, &p, tc, sizeof(display));
                 append_char(display, &p, ' ', sizeof(display));
                 append_str(display, &p, f->name, sizeof(display));
             }
-            draw_text_in_win(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, 0, i, display, attr);
+            draw_text_in_win(explorer_win.x, explorer_win.y, explorer_win.w, explorer_win.h, 0, row, display, attr);
         }
     }
 
-    void draw_viewer_content(int dir_count, int explorer_sel, int viewer_scroll) {
+    static void draw_viewer_content(int dir_count) {
         int file_count = fs_count();
         int total = dir_count + file_count;
         if (total == 0) {
@@ -439,7 +460,7 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
             for (int fi = 0; fi < d->file_count && line < viewer_win.h - 2; ++fi) {
                 char buf[128]; int bp = 0;
                 struct File* ff = &d->files[fi];
-                char tc = (ff->type == 1) ? '*' : (ff->type == 2) ? '>' : (ff->readonly ? ' ' : '+');
+                char tc = (ff->type == FILE_EXE) ? '*' : (ff->type == FILE_GAME) ? '>' : (ff->readonly ? ' ' : '+');
                 append_char(buf, &bp, tc, sizeof(buf));
                 append_char(buf, &bp, ' ', sizeof(buf));
                 append_str(buf, &bp, ff->name, sizeof(buf));

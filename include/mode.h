@@ -5,7 +5,8 @@
 enum {
     MODE_BROWSER = 0,
     MODE_EDITOR  = 1,
-    MODE_GAME    = 2
+    MODE_GAME    = 2,
+    MODE_NOIRC   = 3
 };
 
 #endif

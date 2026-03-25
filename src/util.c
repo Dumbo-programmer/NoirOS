@@ -63,3 +63,20 @@ int kstrlen(const char* s) {
     while (s[len]) len++;
     return len;
 }
+
+int int_to_dec(char *out, int val) {
+    if (val == 0) { out[0] = '0'; out[1] = '\0'; return 1; }
+    char tmp[16];
+    int tp = 0;
+    int neg = 0;
+    if (val < 0) { neg = 1; val = -val; }
+    while (val > 0 && tp < (int)sizeof(tmp)) {
+        tmp[tp++] = '0' + (val % 10);
+        val /= 10;
+    }
+    int pos = 0;
+    if (neg) out[pos++] = '-';
+    for (int i = tp - 1; i >= 0; --i) out[pos++] = tmp[i];
+    out[pos] = '\0';
+    return pos;
+}

@@ -8,4 +8,7 @@ void kstrcpy(char* dst, const char* src);
 int kstrlen(const char* s);
 void kstrncpy(char *dest, const char *src, int n);
 
+/* Convert integer to decimal string (returns length written) */
+int int_to_dec(char *out, int val);
+
 #endif
