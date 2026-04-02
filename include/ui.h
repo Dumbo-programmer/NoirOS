@@ -45,6 +45,9 @@ void ui_set_sleep_callback(void (*cb)(void));
 void ui_handle_key(int key);
 void ui_handle_mouse_click(int x, int y, int button);
 
+/* Boot splash/loader shown before the main desktop UI */
+void ui_show_boot_loader(void);
+
 /* Power screen functions */
 void show_restart_screen(void);
 void show_shutdown_screen(void);

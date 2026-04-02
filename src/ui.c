@@ -66,6 +66,55 @@ static void append_char(char *buf, int *p, char c, int max) {
     buf[*p] = '\0';
 }
 
+static void draw_noiros_logo(int x, int y, u8 bg) {
+    const char* left = "Noir";
+    const char* right = " OS";
+    for (int i = 0; left[i]; ++i) {
+        vga_putcell(x + i, y, left[i], VGA_ATTR(COL_CYAN, bg));
+    }
+    int x2 = x + kstrlen(left);
+    for (int i = 0; right[i]; ++i) {
+        vga_putcell(x2 + i, y, right[i], VGA_ATTR(COL_LIGHT_RED, bg));
+    }
+}
+
+void ui_show_boot_loader(void) {
+    const int boot_delay_per_step = 25000000; /* ~10s total on typical QEMU speed */
+    const int logo_len = 7; /* "Noir OS" */
+    const int logo_x = (WIDTH - logo_len) / 2;
+    const int logo_y = HEIGHT / 2 - 4;
+    const char* boot_msg = "Booting NoirOS";
+    const int msg_len = kstrlen(boot_msg);
+    const int msg_x = (WIDTH - msg_len) / 2;
+    const int bar_w = 34;
+    const int bar_x = (WIDTH - (bar_w + 2)) / 2;
+    const int bar_y = HEIGHT / 2 + 1;
+
+    for (int step = 0; step <= bar_w; ++step) {
+        vga_clear();
+
+        draw_noiros_logo(logo_x, logo_y, COL_BLACK);
+
+        for (int i = 0; i < msg_len; ++i) {
+            vga_putcell(msg_x + i, logo_y + 2, boot_msg[i], VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+        }
+
+        vga_putcell(bar_x, bar_y, '[', VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+        vga_putcell(bar_x + bar_w + 1, bar_y, ']', VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+        for (int i = 0; i < bar_w; ++i) {
+            char ch = (i < step) ? '=' : ' ';
+            u8 attr = (i < step) ? VGA_ATTR(COL_LIGHT_CYAN, COL_BLACK)
+                                 : VGA_ATTR(COL_DARK_GREY, COL_BLACK);
+            vga_putcell(bar_x + 1 + i, bar_y, ch, attr);
+        }
+
+        vga_flush();
+        for (volatile int d = 0; d < boot_delay_per_step; ++d) {
+            __asm__ volatile("nop");
+        }
+    }
+}
+
 
 /* -------- selection & viewer helpers -------- */
 void ui_set_selected(int sel) {
@@ -309,8 +358,7 @@ void ui_draw(void) {
     vga_clear();
     /* Title */
     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
-    const char* title = "NoirOS";
-    for (int i = 0; title[i] && i < WIDTH - 2; i++) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
+    draw_noiros_logo(1, 0, COL_BLUE);
 
     u8 exp_border = (active_panel == 0) ? ATTR_TITLE : ATTR_BORDER;
     u8 view_border = (active_panel == 1) ? ATTR_TITLE : ATTR_BORDER;

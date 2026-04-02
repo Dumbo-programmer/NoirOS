@@ -205,6 +205,126 @@ static struct Dir* dir_find_child(struct Dir* d, const char* name) {
     return 0;
 }
 
+static struct File* dir_find_file(struct Dir* d, const char* name) {
+    if (!d || !name) return 0;
+    for (int i = 0; i < d->file_count; ++i)
+        if (kstrcmp(d->files[i].name, name) == 0) return &d->files[i];
+    return 0;
+}
+
+static int ensure_game_launcher_file(struct Dir* games, const char* name, const char* launch_cmd) {
+    if (!games || !name || !launch_cmd) return 0;
+    if (dir_find_file(games, name)) return 0;
+    if (games->file_count >= MAX_FILES_PER_DIR) return 0;
+
+    struct File* f = &games->files[games->file_count++];
+    kstrncpy(f->name, name, MAX_FILENAME);
+    kstrncpy(f->content, launch_cmd, MAX_CONTENT);
+    f->length = kstrlen(f->content);
+    f->type = FILE_GAME;
+    f->readonly = 1;
+    return 1;
+}
+
+static int fs_ensure_games_dir(void) {
+    int changed = 0;
+    struct Dir* games = dir_find_child(&s_root, "games");
+
+    if (!games) {
+        if (s_root.subdir_count >= MAX_DIRS_PER_DIR) return 0;
+        games = alloc_dir();
+        if (!games) return 0;
+        clear_dir(games);
+        games->parent = &s_root;
+        kstrncpy(games->name, "games", MAX_FILENAME);
+        s_root.subdirs[s_root.subdir_count++] = games;
+        changed = 1;
+    }
+
+    changed |= ensure_game_launcher_file(games, "snake.sav", "snake");
+    changed |= ensure_game_launcher_file(games, "pong.sav",  "pong");
+    changed |= ensure_game_launcher_file(games, "dodge.sav", "dodge");
+    changed |= ensure_game_launcher_file(games, "catch.sav", "catch");
+    return changed;
+}
+
+static int ensure_root_doc_file(const char* name, u8 type, const char* content, u8 readonly) {
+    struct File* f = dir_find_file(&s_root, name);
+    int changed = 0;
+
+    if (!f) {
+        if (s_root.file_count >= MAX_FILES_PER_DIR) return 0;
+        f = &s_root.files[s_root.file_count++];
+        kstrncpy(f->name, name, MAX_FILENAME);
+        changed = 1;
+    }
+
+    if (kstrcmp(f->content, content) != 0) {
+        kstrncpy(f->content, content, MAX_CONTENT);
+        f->length = kstrlen(f->content);
+        changed = 1;
+    }
+
+    if (f->type != type) { f->type = type; changed = 1; }
+    if (f->readonly != readonly) { f->readonly = readonly; changed = 1; }
+
+    return changed;
+}
+
+static int fs_ensure_root_docs(void) {
+    int changed = 0;
+
+    changed |= ensure_root_doc_file(
+        "README.txt",
+        FILE_TEXT,
+        "Noir OS\n"
+        "=======\n"
+        "Lightweight hobby OS in VGA text mode.\n"
+        "\n"
+        "Quick start:\n"
+        " - Press c to open command panel\n"
+        " - Use ls, ll, cd, pwd to navigate\n"
+        " - Use touch/new/edit/cat for files\n"
+        " - Use calc 7*(3+2) for math\n"
+        "\n"
+        "Built-in apps:\n"
+        " - snake, pong, dodge, catch\n"
+        " - run <file.nc> for NoirC\n"
+        "\n"
+        "Power:\n"
+        " - restart/reboot\n"
+        " - F1 restart, F2 shutdown, F3 sleep\n",
+        1
+    );
+
+    changed |= ensure_root_doc_file(
+        "readme.md",
+        FILE_MARKDOWN,
+        "# Noir OS\n"
+        "\n"
+        "**Noir** + **OS** in VGA text mode.\n"
+        "\n"
+        "## Shell\n"
+        "- help, man, history\n"
+        "- ls, ll, dir, cd, pwd\n"
+        "- touch, new, edit, cat, cp, mv, rm\n"
+        "- calc, echo, uname, whoami\n"
+        "\n"
+        "## Games\n"
+        "- snake\n"
+        "- pong\n"
+        "- dodge\n"
+        "- catch\n"
+        "\n"
+        "## Tips\n"
+        "- Press c to open command panel.\n"
+        "- Press Esc to close command panel.\n",
+        1
+    );
+
+    return changed;
+}
+
 static int dir_is_empty(struct Dir* d) {
     return d->file_count == 0 && d->subdir_count == 0;
 }
@@ -239,13 +359,25 @@ static void fs_make_default_tree(void) {
     kstrncpy(f->content,
              "Help:\n"
              " ls                 - list current folder\n"
+             " ll                 - alias for ls\n"
              " cd <dir>|..|/      - change directory\n"
              " mkdir <n>       - make directory\n"
              " rmdir <n>       - remove EMPTY directory\n"
+             " touch <f>       - create empty file\n"
              " new <n> <type>  - create file (type: 0 text, 1 exe, 2 game)\n"
+             " cp <a> <b>      - copy file\n"
+             " mv <a> <b>      - move/rename file\n"
+             " rm <n>          - delete file\n"
              " del <n>         - delete file\n"
+             " echo <text>        - print text\n"
+             " history            - command history\n"
              " edit <file>        - open editor\n"
-             " pwd                - show current path\n",
+             " calc <expr>        - integer calculator\n"
+             " uname / whoami     - system/user info\n"
+             " man                - alias for help\n"
+             " pwd                - show current path\n"
+             " restart/reboot     - restart system\n"
+             " cd games           - open game launchers\n",
              MAX_CONTENT);
     f->length = kstrlen(f->content);
     f->type = FILE_TEXT;
@@ -302,6 +434,9 @@ static void fs_make_default_tree(void) {
             df->readonly = 0;
         }
     }
+
+    fs_ensure_games_dir();
+    fs_ensure_root_docs();
 }
 
 void init_filesystem(void) {
@@ -316,6 +451,7 @@ void init_filesystem(void) {
         if (fat_mount() == FAT_OK) {
             persistence_ready = 1;
             if (!fs_load_snapshot()) fs_save_snapshot();
+            if (fs_ensure_games_dir() | fs_ensure_root_docs()) fs_save_snapshot();
         }
     }
 }

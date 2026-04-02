@@ -7,6 +7,7 @@
 #include "../include/editor.h"
 #include "../include/game_snake.h"
 #include "../include/noirc.h"
+#include "../include/games_extra.h"
 #include "../include/shell.h"
 #include "../include/mode.h"
 /* NOTE: <stddef.h> removed — this is a freestanding kernel with no hosted headers.
@@ -21,6 +22,10 @@
 /* Command history ring buffer */
 #define CMD_HISTORY_SIZE 10
 #define MAX_CMD_LEN      64
+#define CMD_PANEL_H      6
+#define CMD_PANEL_Y      (HEIGHT - CMD_PANEL_H)
+#define CMD_TEXT_ATTR    VGA_ATTR(COL_BLACK, COL_LIGHT_GREY)
+#define CMD_HINT_ATTR    VGA_ATTR(COL_BLUE,  COL_LIGHT_GREY)
 
 static char cmd_history[CMD_HISTORY_SIZE][MAX_CMD_LEN];
 static int  history_count = 0;
@@ -41,16 +46,8 @@ typedef struct {
  * ================================================================ */
 
 static int cmd_help(const char* args, int* mode, int* explorer_sel) {
-    (void)args; (void)mode;
-    for (int i = 0; i < fs_count(); ++i) {
-        if (kstrcmp(fs_get(i)->name, "help.txt") == 0) {
-            ui_set_selected(i);
-            *explorer_sel = i;
-            ui_draw();
-            return 1;
-        }
-    }
-    /* Fallback: built-in help rendered directly */
+    (void)args; (void)mode; (void)explorer_sel;
+    /* Built-in help rendered directly so it always matches active commands. */
     vga_clear();
     const char* help_text[] = {
         "NoirOS Shell Commands:",
@@ -64,8 +61,24 @@ static int cmd_help(const char* args, int* mode, int* explorer_sel) {
         "del <name>    - Delete file",
         "cat <file>    - View file contents",
         "edit <file>   - Open text editor",
+        "calc <expr>   - Integer calculator",
+        "touch <file>  - Create empty text file",
+        "rm <name>     - Delete file (alias: del)",
+        "cp <a> <b>    - Copy file in current directory",
+        "mv <a> <b>    - Move/rename file in current directory",
+        "echo <text>   - Print text on status line",
+        "history       - Show recent commands",
+        "uname         - Show system name",
+        "whoami        - Show current user",
+        "man           - Alias for help",
+        "ll            - Alias for ls",
         "pwd           - Show current path",
         "snake         - Play snake game",
+        "pong          - Play pong",
+        "dodge         - Dodge falling stars",
+        "catch         - Catch falling coins",
+        "restart       - Restart the system",
+        "reboot        - Alias for restart",
         "clear/cls     - Redraw screen",
         "info          - System information",
         "exit/quit     - Return to file browser",
@@ -73,7 +86,7 @@ static int cmd_help(const char* args, int* mode, int* explorer_sel) {
         "Navigation: Arrow keys, Page Up/Down",
         "Press any key to continue..."
     };
-    int num_lines = 19;
+    int num_lines = (int)(sizeof(help_text) / sizeof(help_text[0]));
     for (int i = 0; i < num_lines; i++) {
         for (int j = 0; help_text[i][j]; j++)
             vga_putcell(2 + j, 2 + i, help_text[i][j], 0x0F);
@@ -153,6 +166,151 @@ static int cmd_snake(const char* args, int* mode, int* explorer_sel) {
     return 1;
 }
 
+static int cmd_pong(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    game_pong_run();
+    ui_draw();
+    return 1;
+}
+
+static int cmd_dodge(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    game_dodge_run();
+    ui_draw();
+    return 1;
+}
+
+static int cmd_catch(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    game_catch_run();
+    ui_draw();
+    return 1;
+}
+
+typedef struct {
+    const char* p;
+    int error;
+    const char* error_msg;
+} calc_parser_t;
+
+static void calc_skip_ws(calc_parser_t* c) {
+    while (*c->p == ' ' || *c->p == '\t') c->p++;
+}
+
+static int calc_parse_expr(calc_parser_t* c);
+
+static int calc_parse_factor(calc_parser_t* c) {
+    calc_skip_ws(c);
+    if (c->error) return 0;
+
+    if (*c->p == '(') {
+        c->p++;
+        int v = calc_parse_expr(c);
+        calc_skip_ws(c);
+        if (*c->p != ')') {
+            c->error = 1;
+            c->error_msg = "Missing ')'";
+            return 0;
+        }
+        c->p++;
+        return v;
+    }
+
+    if (*c->p == '+' || *c->p == '-') {
+        char sign = *c->p++;
+        int v = calc_parse_factor(c);
+        return (sign == '-') ? -v : v;
+    }
+
+    if (*c->p < '0' || *c->p > '9') {
+        c->error = 1;
+        c->error_msg = "Expected number";
+        return 0;
+    }
+
+    int v = 0;
+    while (*c->p >= '0' && *c->p <= '9') {
+        v = v * 10 + (*c->p - '0');
+        c->p++;
+    }
+    return v;
+}
+
+static int calc_parse_term(calc_parser_t* c) {
+    int v = calc_parse_factor(c);
+    while (!c->error) {
+        calc_skip_ws(c);
+        char op = *c->p;
+        if (op != '*' && op != '/' && op != '%') break;
+        c->p++;
+
+        int rhs = calc_parse_factor(c);
+        if (c->error) break;
+
+        if ((op == '/' || op == '%') && rhs == 0) {
+            c->error = 1;
+            c->error_msg = "Division by zero";
+            return 0;
+        }
+
+        if (op == '*') v *= rhs;
+        else if (op == '/') v /= rhs;
+        else v %= rhs;
+    }
+    return v;
+}
+
+static int calc_parse_expr(calc_parser_t* c) {
+    int v = calc_parse_term(c);
+    while (!c->error) {
+        calc_skip_ws(c);
+        char op = *c->p;
+        if (op != '+' && op != '-') break;
+        c->p++;
+
+        int rhs = calc_parse_term(c);
+        if (c->error) break;
+
+        if (op == '+') v += rhs;
+        else v -= rhs;
+    }
+    return v;
+}
+
+static int cmd_calc(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    if (!args || !args[0]) {
+        show_error("Usage: calc <expr>");
+        return 0;
+    }
+
+    calc_parser_t c;
+    c.p = args;
+    c.error = 0;
+    c.error_msg = "Invalid expression";
+
+    int result = calc_parse_expr(&c);
+    calc_skip_ws(&c);
+
+    if (!c.error && *c.p != '\0') {
+        c.error = 1;
+        c.error_msg = "Unexpected token";
+    }
+
+    if (c.error) {
+        show_error(c.error_msg);
+        return 0;
+    }
+
+    char msg[64];
+    const char* prefix = "Result: ";
+    int p = 0;
+    for (int i = 0; prefix[i] && p < (int)sizeof(msg) - 1; ++i) msg[p++] = prefix[i];
+    int_to_dec(&msg[p], result);
+    show_message(msg, 0x0A);
+    return 1;
+}
+
 /* Interactive keyboard tester: shows raw scancode and translated key. ESC to exit. */
 static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
@@ -209,6 +367,12 @@ static int cmd_clear(const char* args, int* mode, int* explorer_sel) {
     return 1;
 }
 
+static int cmd_restart(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    show_restart_screen();
+    return 1;
+}
+
 static int cmd_info(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
     vga_clear();
@@ -224,6 +388,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
         "  File System Browser",
         "  Text Editor (Type to edit, F2 save, Esc exit)",
         "  Snake Game",
+        "  Pong / Dodge / Catch mini-games",
         "  Mouse Support (PS/2)",
         "  Command Shell with History",
         "",
@@ -349,21 +514,190 @@ static int cmd_pwd(const char* args, int* mode, int* explorer_sel) {
     return 1;
 }
 
+static void parse_one_arg(const char* args, char* out, int outsz) {
+    int i = 0;
+    if (!args) { out[0] = '\0'; return; }
+    while (args[i] == ' ' || args[i] == '\t') i++;
+    int p = 0;
+    while (args[i] && args[i] != ' ' && args[i] != '\t' && p < outsz - 1) out[p++] = args[i++];
+    out[p] = '\0';
+}
+
+static int parse_two_args(const char* args, char* a, int asz, char* b, int bsz) {
+    int i = 0;
+    int p = 0;
+    if (!args) return 0;
+
+    while (args[i] == ' ' || args[i] == '\t') i++;
+    while (args[i] && args[i] != ' ' && args[i] != '\t' && p < asz - 1) a[p++] = args[i++];
+    a[p] = '\0';
+    if (p == 0) return 0;
+
+    while (args[i] == ' ' || args[i] == '\t') i++;
+    p = 0;
+    while (args[i] && args[i] != ' ' && args[i] != '\t' && p < bsz - 1) b[p++] = args[i++];
+    b[p] = '\0';
+    if (p == 0) return 0;
+
+    return 1;
+}
+
+static int cmd_touch(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    char name[MAX_FILENAME];
+    parse_one_arg(args, name, sizeof(name));
+    if (!name[0]) { show_error("Usage: touch <file>"); return 0; }
+
+    int r = fs_create(name, FILE_TEXT);
+    if (r == FS_OK) { show_message("File created", 0x0A); ui_draw(); return 1; }
+    if (r == FS_ERR_EXISTS) show_error("File already exists");
+    else if (r == FS_ERR_NOSPACE) show_error("No space for file");
+    else show_error("touch failed");
+    return 0;
+}
+
+static int cmd_rm(const char* args, int* mode, int* explorer_sel) {
+    return cmd_del(args, mode, explorer_sel);
+}
+
+static int cmd_cp(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    char src[MAX_FILENAME], dst[MAX_FILENAME];
+    if (!parse_two_args(args, src, sizeof(src), dst, sizeof(dst))) {
+        show_error("Usage: cp <source> <dest>");
+        return 0;
+    }
+
+    struct File* s = fs_find(src);
+    if (!s) { show_error("Source file not found"); return 0; }
+    if (fs_find(dst)) { show_error("Destination exists"); return 0; }
+
+    int r = fs_create(dst, s->type);
+    if (r != FS_OK) { show_error("cp create failed"); return 0; }
+    r = fs_write(dst, s->content);
+    if (r < 0) { show_error("cp write failed"); return 0; }
+
+    show_message("File copied", 0x0A);
+    ui_draw();
+    return 1;
+}
+
+static int cmd_mv(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    char src[MAX_FILENAME], dst[MAX_FILENAME];
+    if (!parse_two_args(args, src, sizeof(src), dst, sizeof(dst))) {
+        show_error("Usage: mv <source> <dest>");
+        return 0;
+    }
+
+    struct File* s = fs_find(src);
+    if (!s) { show_error("Source file not found"); return 0; }
+    if (fs_find(dst)) { show_error("Destination exists"); return 0; }
+
+    int r = fs_create(dst, s->type);
+    if (r != FS_OK) { show_error("mv create failed"); return 0; }
+    r = fs_write(dst, s->content);
+    if (r < 0) { show_error("mv write failed"); return 0; }
+    r = fs_delete(src);
+    if (r != FS_OK) { show_error("mv delete failed"); return 0; }
+
+    show_message("File moved", 0x0A);
+    ui_draw();
+    return 1;
+}
+
+static int cmd_echo(const char* args, int* mode, int* explorer_sel) {
+    (void)mode; (void)explorer_sel;
+    if (!args) { show_message("", 0x0F); return 1; }
+    show_message(args, 0x0F);
+    return 1;
+}
+
+static int cmd_show_history(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    vga_clear();
+    const char* title = "Command History";
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
+
+    int first = (history_count > CMD_HISTORY_SIZE) ? history_count - CMD_HISTORY_SIZE : 0;
+    int row = 2;
+    for (int i = first; i < history_count && row < HEIGHT - 2; ++i) {
+        char line[WIDTH];
+        int p = 0;
+        int_to_dec(line, i + 1);
+        while (line[p]) p++;
+        if (p < WIDTH - 2) line[p++] = ':';
+        if (p < WIDTH - 2) line[p++] = ' ';
+        const char* h = cmd_history[i % CMD_HISTORY_SIZE];
+        for (int j = 0; h[j] && p < WIDTH - 2; ++j) line[p++] = h[j];
+        line[p] = '\0';
+        for (int j = 0; line[j] && j < WIDTH - 2; ++j) vga_putcell(1 + j, row, line[j], 0x0F);
+        row++;
+    }
+
+    if (history_count == 0) {
+        const char* empty = "(no history)";
+        for (int i = 0; empty[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 2, empty[i], 0x08);
+    }
+
+    const char* footer = "Press any key to continue...";
+    for (int i = 0; footer[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 1, footer[i], 0x0E);
+    wait_key();
+    ui_draw();
+    return 1;
+}
+
+static int cmd_uname(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    show_message("NoirOS i386", 0x0F);
+    return 1;
+}
+
+static int cmd_whoami(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    show_message("root", 0x0F);
+    return 1;
+}
+
+static int cmd_man(const char* args, int* mode, int* explorer_sel) {
+    return cmd_help(args, mode, explorer_sel);
+}
+
+static int cmd_ll(const char* args, int* mode, int* explorer_sel) {
+    return cmd_list(args, mode, explorer_sel);
+}
+
 /* ---- Command table (NULL-terminated sentinel) ---- */
 static const shell_command_t commands[] = {
     {"help",  "Show available commands",    cmd_help},
     {"ls",    "List files",                 cmd_list},
+    {"ll",    "List files",                 cmd_ll},
     {"dir",   "List files",                 cmd_list},
     {"cd",    "Change directory",           cmd_cd},
     {"mkdir", "Make directory",             cmd_mkdir},
     {"rmdir", "Remove empty directory",     cmd_rmdir},
+    {"touch", "Create empty text file",     cmd_touch},
     {"new",   "Create file",               cmd_new},
+    {"rm",    "Delete file",               cmd_rm},
     {"del",   "Delete file",               cmd_del},
+    {"cp",    "Copy file",                  cmd_cp},
+    {"mv",    "Move/rename file",           cmd_mv},
+    {"echo",  "Print text",                 cmd_echo},
     {"cat",   "View file contents",         cmd_cat},
     {"edit",  "Edit a file",               cmd_edit},
+    {"calc",  "Integer calculator",         cmd_calc},
+    {"history","Show command history",      cmd_show_history},
+    {"uname", "System name",                cmd_uname},
+    {"whoami", "Current user",              cmd_whoami},
+    {"man",   "Alias for help",             cmd_man},
     {"pwd",   "Print working directory",    cmd_pwd},
     {"snake", "Play snake game",            cmd_snake},
+    {"pong",  "Play pong",                  cmd_pong},
+    {"dodge", "Dodge falling stars",        cmd_dodge},
+    {"catch", "Catch falling coins",        cmd_catch},
     {"kbdtest","Interactive keyboard test", cmd_kbdtest},
+    {"restart", "Restart system",           cmd_restart},
+    {"reboot",  "Restart system",           cmd_restart},
     {"clear", "Redraw screen",             cmd_clear},
     {"cls",   "Redraw screen",             cmd_clear},
     {"info",  "System information",         cmd_info},
@@ -410,6 +744,46 @@ static void add_to_history(const char* cmd) {
     history_count++;
 }
 
+static void cmd_panel_write_line(int row, const char* text, u8 attr) {
+    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, row, ' ', ATTR_STATUS);
+    for (int i = 0; text[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, row, text[i], attr);
+}
+
+static void draw_cmd_panel(const char* prompt, const char* input) {
+    char line[WIDTH];
+    int p = 0;
+
+    draw_box(0, CMD_PANEL_Y, WIDTH, CMD_PANEL_H, " Command ", ATTR_PROMPT, ATTR_BORDER, ATTR_STATUS);
+    cmd_panel_write_line(CMD_PANEL_Y + 1, "Enter=run  Esc=cancel  Up/Down=history  Tab=toggle panel", CMD_HINT_ATTR);
+
+    for (int i = 0; prompt[i] && p < WIDTH - 3; ++i) line[p++] = prompt[i];
+    for (int i = 0; input[i] && p < WIDTH - 3; ++i) line[p++] = input[i];
+    line[p] = '\0';
+    cmd_panel_write_line(CMD_PANEL_Y + 2, line, CMD_TEXT_ATTR);
+
+    if (history_count > 0) {
+        char hline[WIDTH];
+        int hp = 0;
+        const char* prefix = "Recent: ";
+        const char* h = cmd_history[(history_count - 1) % CMD_HISTORY_SIZE];
+        for (int i = 0; prefix[i] && hp < WIDTH - 3; ++i) hline[hp++] = prefix[i];
+        for (int i = 0; h[i] && hp < WIDTH - 3; ++i) hline[hp++] = h[i];
+        hline[hp] = '\0';
+        cmd_panel_write_line(CMD_PANEL_Y + 3, hline, CMD_HINT_ATTR);
+    }
+
+    if (history_count > 1) {
+        char hline2[WIDTH];
+        int hp2 = 0;
+        const char* prefix2 = "Prev:   ";
+        const char* h2 = cmd_history[(history_count - 2) % CMD_HISTORY_SIZE];
+        for (int i = 0; prefix2[i] && hp2 < WIDTH - 3; ++i) hline2[hp2++] = prefix2[i];
+        for (int i = 0; h2[i] && hp2 < WIDTH - 3; ++i) hline2[hp2++] = h2[i];
+        hline2[hp2] = '\0';
+        cmd_panel_write_line(CMD_PANEL_Y + 4, hline2, CMD_HINT_ATTR);
+    }
+}
+
 /* ================================================================
  * Line editor with history navigation
  * ================================================================ */
@@ -428,17 +802,8 @@ static void add_to_history(const char* cmd) {
  * hist_pos tracks a logical index into [min_hist, history_count].
  */
 static int shell_readline_preloaded(const char* prompt, char* out, int outsz, int first_key) {
-    /* Clear the status row */
-    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
-
-    /* Draw prompt */
-    int pi = 0;
-    for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
-    vga_flush();
-
-    const int prompt_end = 1 + pi;
-    int cx   = prompt_end;
     int ipos = 0;
+    out[0] = '\0';
 
     /* hist_pos starts just past the newest entry; UP moves it backwards. */
     int hist_pos = history_count;
@@ -446,6 +811,10 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
     int pk = first_key; /* preloaded key; 0 means none */
 
     while (1) {
+        out[ipos] = '\0';
+        draw_cmd_panel(prompt, out);
+        vga_flush();
+
         int ch;
         if (pk) { ch = pk; pk = 0; }
         else ch = wait_key();
@@ -465,22 +834,13 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
         }
 
         if (ch == '\b') {
-            if (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
-            vga_flush();
+            if (ipos > 0) ipos--;
             continue;
         }
 
         if (ch == K_TAB) {
             ui_toggle_active_panel();
             ui_draw();
-            cx = 1;
-            for (int i = 0; prompt[i] && cx < WIDTH - 1; i++) {
-                vga_putcell(cx++, STATUS_ROW, prompt[i], 0x0E);
-            }
-            for (int i = 0; i < ipos && cx < WIDTH - 1; i++) {
-                vga_putcell(cx++, STATUS_ROW, out[i], 0x0F);
-            }
-            vga_flush();
             continue;
         }
 
@@ -490,39 +850,35 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
             int min_hist = (history_count > CMD_HISTORY_SIZE)
                            ? history_count - CMD_HISTORY_SIZE : 0;
             if (hist_pos > min_hist) hist_pos--;
-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
             const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+            ipos = 0;
             for (int i = 0; h[i] && ipos < outsz - 1; i++) {
                 out[ipos++] = h[i];
-                vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
             }
-            vga_flush();
+            out[ipos] = '\0';
             continue;
         }
 
         if (ch == K_ARROW_DOWN) {
             if (history_count == 0) continue;
-            /* Clear current input */
-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+            ipos = 0;
             if (hist_pos < history_count) hist_pos++;
             if (hist_pos < history_count) {
                 const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
                 for (int i = 0; h[i] && ipos < outsz - 1; i++) {
                     out[ipos++] = h[i];
-                    vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
                 }
             }
-            vga_flush();
+            out[ipos] = '\0';
             /* else hist_pos == history_count → input left blank */
             continue;
         }
 
         if (ch >= 32 && ch <= 126) {
-            if (ipos < outsz - 1 && cx < WIDTH - 1) {
+            if (ipos < outsz - 1) {
                 out[ipos++] = (char)ch;
-                vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F);
             }
-            vga_flush();
+            out[ipos] = '\0';
         }
     }
 }
@@ -559,6 +915,12 @@ static int execute_command(const char* input, int* mode, int* explorer_sel) {
     err[p] = '\0';
     show_error(err);
     return 0;
+}
+
+static int is_cmd_token(const char* input, const char* name) {
+    int cmd_len = 0;
+    while (input[cmd_len] && input[cmd_len] != ' ') cmd_len++;
+    return (kstrncmp(input, name, cmd_len) == 0 && kstrlen(name) == cmd_len);
 }
 
 /* ================================================================
@@ -637,7 +999,15 @@ int shell_loop(int explorer_sel_in, int* mode, int first_key) {
                     cmd[p] = '\0';
                     execute_command(cmd, mode, &explorer_sel);
                 } else if (f->type == FILE_GAME) {
-                    execute_command("snake", mode, &explorer_sel);
+                    if (kstrncmp(f->name, "pong", 4) == 0) {
+                        execute_command("pong", mode, &explorer_sel);
+                    } else if (kstrncmp(f->name, "dodge", 5) == 0) {
+                        execute_command("dodge", mode, &explorer_sel);
+                    } else if (kstrncmp(f->name, "catch", 5) == 0) {
+                        execute_command("catch", mode, &explorer_sel);
+                    } else {
+                        execute_command("snake", mode, &explorer_sel);
+                    }
                 } else {
                     char cmd[MAX_CMD_LEN];
                     int p = 0;
@@ -662,11 +1032,21 @@ int shell_loop(int explorer_sel_in, int* mode, int first_key) {
 /* Public helper: open the command prompt immediately and execute one command. */
 int shell_open_prompt(int explorer_sel_in, int* mode) {
     int explorer_sel = explorer_sel_in;
-    char input[MAX_CMD_LEN];
-    if (shell_readline_preloaded("cmd> ", input, sizeof(input), 0) && input[0]) {
+
+    while (*mode == MODE_BROWSER) {
+        char input[MAX_CMD_LEN];
+        int ok = shell_readline_preloaded("cmd> ", input, sizeof(input), 0);
+        if (!ok) break; /* ESC closes command panel */
+        if (!input[0]) continue;
+
         add_to_history(input);
         execute_command(input, mode, &explorer_sel);
+
+        /* Keep cmd open for repeated commands like ls; close on explicit exit. */
+        if (is_cmd_token(input, "exit") || is_cmd_token(input, "quit")) break;
+        if (*mode != MODE_BROWSER) break;
     }
+
     ui_draw();
     return explorer_sel;
 }

@@ -48,11 +48,12 @@ void kernel_main(void) {
     init_filesystem();
     /* Ensure UI layout matches runtime VGA mode */
     ui_relayout();
+    ui_show_boot_loader();
     ui_draw();
 
     int explorer_sel = ui_get_selected();
     int game_timer = 0;
-    const int game_speed = 30; /* frames between snake ticks - increased to decrease speed */
+    const int game_speed = 180; /* frames between snake ticks (higher is slower) */
 
     while (1) {
         int k = read_key();
