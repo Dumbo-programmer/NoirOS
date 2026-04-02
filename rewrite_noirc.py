@@ -1,4 +1,5 @@
-#include "../include/noirc.h"
+with open('src/noirc.c', 'w') as f:
+    f.write('''#include "../include/noirc.h"
 #include "../include/vga.h"
 #include "../include/input.h"
 #include "../include/fs.h"
@@ -8,7 +9,7 @@
 /* Minimal Noir C interpreter
  * Supports: single letter variables (a-z)
  * Arithmetic: +, -, *, /
- * Statements: int a = 5; a = a + 1; print(a); while(a<10){...} if(a==1){...}
+ * Statements: var = expr;, print(expr);, while(expr) { ... }, if(expr) { ... }
  */
 
 static const char* src;
@@ -16,8 +17,12 @@ static int pos = 0;
 static int vars[26] = {0};
 static int out_row = 2; // lines for output
 
+// Helper to print strings to the screen
 static void noirc_print_str(const char* s) {
-    if (out_row >= HEIGHT - 3) return;
+    if (out_row >= HEIGHT - 3) {
+        // scroll? For simplicity, we just stop printing
+        return;
+    }
     int col = 1;
     while (*s && col < WIDTH - 2) {
         vga_putcell(col++, out_row, *s++, VGA_ATTR(COL_CYAN, COL_BLACK));
@@ -49,16 +54,7 @@ static void skip_whitespace() {
     }
 }
 
-static int is_alpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
-static int is_digit(char c) { return c >= '0' && c <= '9'; }
-
-static int match1(char c) {
-    skip_whitespace();
-    if (src[pos] == c) { pos++; return 1; }
-    return 0;
-}
-
-static int match_str(const char* m) {
+static int match(const char* m) {
     skip_whitespace();
     int i = 0;
     while (m[i]) {
@@ -69,19 +65,23 @@ static int match_str(const char* m) {
     return 1;
 }
 
-// Forward declarations
+static int is_alpha(char c) { return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'); }
+static int is_digit(char c) { return c >= '0' && c <= '9'; }
+
+// Parser decls
 static int parse_expr();
 static void parse_statement();
+static void parse_block();
 
 static int parse_factor() {
     skip_whitespace();
-    if (match1('(')) {
+    if (match("(")) {
         int v = parse_expr();
-        match1(')');
+        match(")");
         return v;
     }
+    int v = 0;
     if (is_digit(src[pos])) {
-        int v = 0;
         while (is_digit(src[pos])) {
             v = v * 10 + (src[pos] - '0');
             pos++;
@@ -105,7 +105,6 @@ static int parse_term() {
         int r = parse_factor();
         if (op == '*') v *= r;
         else if (r != 0) v /= r;
-        skip_whitespace();
     }
     return v;
 }
@@ -113,118 +112,94 @@ static int parse_term() {
 static int parse_expr() {
     int v = parse_term();
     skip_whitespace();
-    while (match_str("==") || match_str(">") || match_str("<") || match1('+') || match1('-')) {
-        // Find which one matched
-        int op = 0;
-        if (src[pos-2] == '=' && src[pos-1] == '=') op = 1;      // ==
-        else if (src[pos-1] == '>') op = 2; // >
-        else if (src[pos-1] == '<') op = 3; // <
-        else if (src[pos-1] == '+') op = 4; // +
-        else if (src[pos-1] == '-') op = 5; // -
-        
+    while (src[pos] == '+' || src[pos] == '-' || src[pos] == '>' || src[pos] == '<' || src[pos] == '=') {
+        if (match("==")) { v = (v == parse_term()); continue; }
+        char op = src[pos++];
         int r = parse_term();
-        
-        if (op == 1) v = (v == r);
-        else if (op == 2) v = (v > r);
-        else if (op == 3) v = (v < r);
-        else if (op == 4) v += r;
-        else if (op == 5) v -= r;
-        skip_whitespace();
+        if (op == '+') v += r;
+        else if (op == '-') v -= r;
+        else if (op == '>') v = (v > r);
+        else if (op == '<') v = (v < r);
     }
     return v;
 }
 
-static void skip_block() {
-    int brackets = 1;
-    while(src[pos] != '{' && src[pos]) pos++;
-    if(src[pos]) pos++; // skip {
-    while (brackets > 0 && src[pos]) {
-        if (src[pos] == '{') brackets++;
-        else if (src[pos] == '}') brackets--;
-        pos++;
-    }
-}
-
-static void parse_block() {
-    skip_whitespace();
-    if (match1('{')) {
-        while (!match1('}') && src[pos]) {
-            parse_statement();
-            skip_whitespace();
-        }
-    } else {
-        parse_statement();
-    }
-}
-
 static void parse_statement() {
     skip_whitespace();
-    if (!src[pos] || src[pos] == '}') return;
-
-    if (match_str("print(")) {
+    if (match("print(")) {
         int v = parse_expr();
-        match1(')');
-        match1(';');
+        match(")");
+        match(";");
         noirc_print_num(v);
         return;
     }
-    if (match_str("if(")) {
+    if (match("if(")) {
         int cond = parse_expr();
-        match1(')');
+        match(")");
         if (cond) {
             parse_block();
         } else {
-            skip_block();
+            // Skip block
+            int brackets = 1;
+            while (src[pos] != '{') pos++;
+            pos++;
+            while (brackets > 0 && src[pos]) {
+                if (src[pos] == '{') brackets++;
+                if (src[pos] == '}') brackets--;
+                pos++;
+            }
         }
         return;
     }
-    if (match_str("while(")) {
+    if (match("while(")) {
         int cond_pos = pos;
         while (1) {
             pos = cond_pos;
             int cond = parse_expr();
-            match1(')');
+            match(")");
             if (cond) {
-                int block_pos = pos;
                 parse_block();
-                // We must unroll and loop again.
-                // Wait, recursive loops are tricky with a global pos. We need to save and restore.
-                // Since this is a simple interpreter, it's easier to rethink while as re-evaluating the AST.
-                // But we don't have an AST. 
-                // Alternatively, reset pos to cond_pos and re-parse everything.
-                pos = cond_pos;
-                cond = parse_expr();
-                match1(')');
-                if(!cond) {
-                    skip_block();
-                    break;
-                } else {
-                    pos = block_pos; 
-                    parse_block();
-                }
             } else {
-                skip_block();
+                int brackets = 1;
+                while (src[pos] != '{') pos++;
+                pos++;
+                while (brackets > 0 && src[pos]) {
+                    if (src[pos] == '{') brackets++;
+                    if (src[pos] == '}') brackets--;
+                    pos++;
+                }
                 break;
             }
         }
         return;
     }
-
-    // Assignment or variable declaration
-    match_str("int "); // ignore 'int ' if present
+    // Assignment
+    if (match("int ")) {
+        // Just skip "int " and fall through to assignment if it's "int a = 5;"
+        // Real C parsing is way harder, we assume "int a = ..." or "a = ..."
+    }
     
     char name = src[pos];
     if (is_alpha(name)) {
         pos++;
         skip_whitespace();
-        if (match1('=')) {
+        if (match("=")) {
             int v = parse_expr();
-            match1(';');
+            match(";");
             if (name >= 'a' && name <= 'z') vars[name - 'a'] = v;
         }
+    }
+}
+
+static void parse_block() {
+    skip_whitespace();
+    if (match("{")) {
+        while (!match("}") && src[pos]) {
+            parse_statement();
+            skip_whitespace();
+        }
     } else {
-        // garbage
-        pos++;
+        parse_statement();
     }
 }
 
@@ -237,27 +212,33 @@ void noirc_run(struct File* f) {
     if (!f) return;
     vga_clear();
 
+    /* Header */
     char title[80]; int tp = 0;
     noirc_append_str(title, &tp, "Running NoirC: ", sizeof(title));
     noirc_append_str(title, &tp, f->name, sizeof(title));
     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
     for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], VGA_ATTR(COL_WHITE, COL_BLACK));
 
+    /* Initialize runtime */
     for(int i=0; i<26; i++) vars[i] = 0;
     src = f->content;
     pos = 0;
     out_row = 2;
     noirc_print_str("--- Execution Output ---");
 
+    /* Parse all statements */
     while (src[pos]) {
         skip_whitespace();
         if (!src[pos]) break;
         parse_statement();
     }
 
-    const char* out = "--- Finished. Press any key. ---";
+    /* Execution End */
+    const char* out = "--- Execution finished. Press any key. ---";
     for (int i = 0; out[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 2, out[i], VGA_ATTR(COL_YELLOW, COL_BLACK));
 
+    /* Wait for key and return to UI */
     wait_key();
     ui_draw();
 }
+''')

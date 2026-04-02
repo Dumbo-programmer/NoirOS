@@ -78,7 +78,7 @@ static int cmd_help(const char* args, int* mode, int* explorer_sel) {
         for (int j = 0; help_text[i][j]; j++)
             vga_putcell(2 + j, 2 + i, help_text[i][j], 0x0F);
     }
-    read_key();
+    wait_key();
     ui_draw();
     return 1;
 }
@@ -91,7 +91,12 @@ static int cmd_list(const char* args, int* mode, int* explorer_sel) {
 
 static int cmd_edit(const char* args, int* mode, int* explorer_sel) {
     (void)explorer_sel;
-    if (!args || !args[0]) { show_error("Usage: edit <filename>"); return 0; }
+    if (!args || !args[0]) { show_error("Usage: edit <filename>"); return 0; }  
+    struct File* f = fs_find(args);
+    if (f && f->readonly) {
+        show_error("File is read-only and cannot be opened");
+        return 0;
+    }
     editor_open(args, mode);
     return 1;
 }
@@ -131,7 +136,7 @@ static int cmd_cat(const char* args, int* mode, int* explorer_sel) {
             for (int j = 0; footer[j]; ++j)
                 vga_putcell(1 + j, HEIGHT - 1, footer[j], 0x0E);
 
-            read_key();
+            wait_key();
             ui_draw();
             return 1;
         }
@@ -145,6 +150,56 @@ static int cmd_snake(const char* args, int* mode, int* explorer_sel) {
     *mode = MODE_GAME;
     snake_init();
     snake_draw();
+    return 1;
+}
+
+/* Interactive keyboard tester: shows raw scancode and translated key. ESC to exit. */
+static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
+    (void)args; (void)mode; (void)explorer_sel;
+    vga_clear();
+    const char* title = "Keyboard Tester - press keys (ESC to exit)";
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
+    while (1) {
+        int k = read_key();
+        for (volatile int i = 0; i < 500000; ++i) asm volatile("nop");
+        
+        extern void vga_flush(void);
+        vga_flush();
+        
+        int sc = input_get_last_scancode();
+        int lk = input_get_last_key();
+        /* Clear status lines */
+        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 2, ' ', 0x07);
+        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 3, ' ', 0x07);
+        char buf[64]; int p = 0;
+        /* Show raw scancode */
+        const char* s1 = "Last scancode: ";
+        for (int i = 0; s1[i] && p < (int)sizeof(buf)-1; ++i) buf[p++] = s1[i];
+        /* append decimal */
+        int v = sc; if (v == 0) { buf[p++] = '0'; }
+        else {
+            char digs[12]; int d = 0;
+            while (v > 0 && d < (int)sizeof(digs)) { digs[d++] = '0' + (v % 10); v /= 10; }
+            for (int i = d - 1; i >= 0; --i) buf[p++] = digs[i];
+        }
+        buf[p] = '\0';
+        for (int i = 0; buf[i]; ++i) vga_putcell(1 + i, 2, buf[i], 0x0F);
+
+        /* Show translated key */
+        char buf2[64]; int q = 0;
+        const char* s2 = "Translated key: ";
+        for (int i = 0; s2[i] && q < (int)sizeof(buf2)-1; ++i) buf2[q++] = s2[i];
+        if (lk >= 32 && lk <= 126) buf2[q++] = (char)lk;
+        else if (lk == K_ESC) { buf2[q++] = 'E'; buf2[q++] = 'S'; buf2[q++] = 'C'; }
+        else if (lk == K_ARROW_UP) { buf2[q++] = '^'; buf2[q++] = 'U'; }
+        else if (lk == K_ARROW_DOWN) { buf2[q++] = 'v'; buf2[q++] = 'D'; }
+        else if (lk == 0) { buf2[q++] = '-'; }
+        buf2[q] = '\0';
+        for (int i = 0; buf2[i]; ++i) vga_putcell(1 + i, 3, buf2[i], 0x0F);
+
+        if (k == K_ESC) break;
+    }
+    ui_draw();
     return 1;
 }
 
@@ -183,7 +238,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
         for (int j = 0; info_lines[i][j]; j++)
             vga_putcell(2 + j, 2 + i, info_lines[i][j], color);
     }
-    read_key();
+    wait_key();
     ui_draw();
     return 1;
 }
@@ -308,6 +363,7 @@ static const shell_command_t commands[] = {
     {"edit",  "Edit a file",               cmd_edit},
     {"pwd",   "Print working directory",    cmd_pwd},
     {"snake", "Play snake game",            cmd_snake},
+    {"kbdtest","Interactive keyboard test", cmd_kbdtest},
     {"clear", "Redraw screen",             cmd_clear},
     {"cls",   "Redraw screen",             cmd_clear},
     {"info",  "System information",         cmd_info},
@@ -323,9 +379,10 @@ static const shell_command_t commands[] = {
 
 static void show_error(const char* message) {
     for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
-    for (int i = 0; message[i] && i < STATUS_COLS; i++)
+    for (int i = 0; message[i] && i < STATUS_COLS; i++) {
         vga_putcell(1 + i, STATUS_ROW, message[i], 0x0C);
-    read_key();
+    }
+    wait_key();
 }
 
 static void show_message(const char* message, unsigned char color) {
@@ -360,97 +417,15 @@ static void add_to_history(const char* cmd) {
 /* Read a line from the user on STATUS_ROW.
  * prompt: string displayed before the cursor.
  * out/outsz: output buffer.
- * Returns 1 if confirmed with Enter, 0 if aborted with ESC. */
-static int shell_readline(const char* prompt, char* out, int outsz) {
-    /* Clear the status row */
-    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
-
-    /* Draw prompt */
-    int pi = 0;
-    for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
-
-    const int prompt_end = 1 + pi;   /* first editable column */
-    int cx   = prompt_end;           /* current screen column */
-    int ipos = 0;                    /* chars in output buffer */
-
-    /* History navigation position: starts past the last entry so pressing
-     * UP visits the most recent entry first. */
-    int hist_pos = history_count;
-
-    while (1) {
-        int ch = read_key();
-
-        if (ch == '\n' || ch == '\r') {
-            out[ipos] = '\0';
-            return 1;
-        }
-
-        if (ch == K_ESC) {
-            out[0] = '\0';
-            ui_draw();
-            return 0;
-        }
-
-        if (ch == '\b') {
-            if (ipos > 0) {
-                ipos--;
-                cx--;
-                vga_putcell(cx, STATUS_ROW, ' ', 0x07);
-            }
-            continue;
-        }
-
-        /* History: UP → go back one entry */
-        if (ch == K_ARROW_UP) {
-            if (history_count == 0) continue;
-            if (hist_pos > 0) hist_pos--;
-
-            /* Clear current input visually */
-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
-
-            /* Load history entry */
-            const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
-            for (int i = 0; h[i] && ipos < outsz - 1; i++) {
-                out[ipos++] = h[i];
-                vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
-            }
-            continue;
-        }
-
-        /* History: DOWN → go forward; when reaching the end, clear to blank */
-        if (ch == K_ARROW_DOWN) {
-            if (history_count == 0) continue;
-
-            /* Clear current input visually */
-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
-
-            if (hist_pos < history_count) hist_pos++;
-
-            if (hist_pos < history_count) {
-                /* Load entry */
-                const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
-                for (int i = 0; h[i] && ipos < outsz - 1; i++) {
-                    out[ipos++] = h[i];
-                    vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
-                }
-            }
-            /* else: hist_pos == history_count → leave blank (already cleared) */
-            continue;
-        }
-
-        /* Regular printable character */
-        if (ch >= 32 && ch <= 126) {
-            if (ipos < outsz - 1 && cx < WIDTH - 1) {
-                out[ipos++] = (char)ch;
-                vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F);
-            }
-        }
-    }
-}
-
-/* Like shell_readline but with a preloaded first key. If first_key is 0,
- * behaves like shell_readline. Otherwise the first iteration will process
- * `first_key` as if it was returned by read_key(), then continue reading.
+ * first_key: if non-zero, process this key before blocking for more input
+ *            (pass 0 for a normal blocking read from the start).
+ * Returns 1 if confirmed with Enter, 0 if aborted with ESC.
+ *
+ * History ring-buffer note: history_count is the total number of commands
+ * ever entered and grows without bound.  The ring stores at most
+ * CMD_HISTORY_SIZE entries; the oldest reachable entry is therefore at
+ * logical position (history_count - CMD_HISTORY_SIZE), clamped to 0.
+ * hist_pos tracks a logical index into [min_hist, history_count].
  */
 static int shell_readline_preloaded(const char* prompt, char* out, int outsz, int first_key) {
     /* Clear the status row */
@@ -463,6 +438,8 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
     const int prompt_end = 1 + pi;
     int cx   = prompt_end;
     int ipos = 0;
+
+    /* hist_pos starts just past the newest entry; UP moves it backwards. */
     int hist_pos = history_count;
 
     int pk = first_key; /* preloaded key; 0 means none */
@@ -470,7 +447,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
     while (1) {
         int ch;
         if (pk) { ch = pk; pk = 0; }
-        else ch = read_key();
+        else ch = wait_key();
 
         if (ch == '\n' || ch == '\r') {
             out[ipos] = '\0';
@@ -480,6 +457,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
         if (ch == K_ESC) {
             out[0] = '\0';
             ui_draw();
+            input_reset_modifiers();
             return 0;
         }
 
@@ -488,28 +466,55 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
             continue;
         }
 
+        if (ch == K_TAB) {
+            ui_toggle_active_panel();
+            ui_draw();
+            cx = 1;
+            for (int i = 0; prompt[i] && cx < WIDTH - 1; i++) {
+                vga_putcell(cx++, STATUS_ROW, prompt[i], 0x0E);
+            }
+            for (int i = 0; i < ipos && cx < WIDTH - 1; i++) {
+                vga_putcell(cx++, STATUS_ROW, out[i], 0x0F);
+            }
+            continue;
+        }
+
         if (ch == K_ARROW_UP) {
             if (history_count == 0) continue;
-            if (hist_pos > 0) hist_pos--;
+            /* Oldest reachable logical index in the ring */
+            int min_hist = (history_count > CMD_HISTORY_SIZE)
+                           ? history_count - CMD_HISTORY_SIZE : 0;
+            if (hist_pos > min_hist) hist_pos--;
             while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
             const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
-            for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+            for (int i = 0; h[i] && ipos < outsz - 1; i++) {
+                out[ipos++] = h[i];
+                vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
+            }
             continue;
         }
 
         if (ch == K_ARROW_DOWN) {
             if (history_count == 0) continue;
+            /* Clear current input */
             while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
             if (hist_pos < history_count) hist_pos++;
             if (hist_pos < history_count) {
                 const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
-                for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+                for (int i = 0; h[i] && ipos < outsz - 1; i++) {
+                    out[ipos++] = h[i];
+                    vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
+                }
             }
+            /* else hist_pos == history_count → input left blank */
             continue;
         }
 
         if (ch >= 32 && ch <= 126) {
-            if (ipos < outsz - 1 && cx < WIDTH - 1) { out[ipos++] = (char)ch; vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F); }
+            if (ipos < outsz - 1 && cx < WIDTH - 1) {
+                out[ipos++] = (char)ch;
+                vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F);
+            }
         }
     }
 }
@@ -561,35 +566,86 @@ int shell_loop(int explorer_sel_in, int* mode, int first_key) {
     /* Consume Fn keys — already handled by ui_handle_key */
     if (k == K_F1 || k == K_F2 || k == K_F3) {
         ui_draw();
+        input_reset_modifiers();
         return ui_get_selected();
     }
 
-    int total = fs_dir_count() + fs_count();
-
     if (k == K_ARROW_UP || k == 'w' || k == 'W') {
-        int sel = ui_get_selected();
-        if (sel > 0) sel--;
-        ui_set_selected(sel);
+        if (ui_get_active_panel() == 0) {
+            int sel = ui_get_selected();
+            int total = fs_dir_count() + fs_count();
+            if (total <= 0) sel = 0;
+            else sel = (sel > 0) ? sel - 1 : (total - 1);
+            ui_set_selected(sel);
+        } else {
+            ui_scroll_viewer(-1);
+        }
         ui_draw();
+        input_reset_modifiers();
     } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
-        int sel = ui_get_selected();
-        int max = (total > 0) ? total - 1 : 0;
-        if (sel < max) sel++;
-        ui_set_selected(sel);
+        if (ui_get_active_panel() == 0) {
+            int sel = ui_get_selected();
+            int total = fs_dir_count() + fs_count();
+            if (total <= 0) sel = 0;
+            else { int max = total - 1; sel = (sel < max) ? sel + 1 : 0; }
+            ui_set_selected(sel);
+        } else {
+            ui_scroll_viewer(1);
+        }
         ui_draw();
+        input_reset_modifiers();
     } else if (k == K_PAGE_UP) {
         ui_scroll_viewer(-3);
         ui_draw();
+        input_reset_modifiers();
     } else if (k == K_PAGE_DOWN) {
         ui_scroll_viewer(3);
         ui_draw();
+        input_reset_modifiers();
     } else if (k == '\n' || k == '\r') {
-        char input[MAX_CMD_LEN];
-        if (shell_readline_preloaded("cmd> ", input, sizeof(input), 0) && input[0]) {
-            add_to_history(input);
-            execute_command(input, mode, &explorer_sel);
+        if (ui_get_active_panel() == 0) {
+            int sel = ui_get_selected();
+            int dir_count = fs_dir_count();
+            if (sel < dir_count) {
+                struct Dir* d = fs_dir_get(sel);
+                char cmd[MAX_CMD_LEN];
+                int p = 0;
+                const char* c = "cd ";
+                while (*c) cmd[p++] = *c++;
+                for (int i = 0; d->name[i] && p < MAX_CMD_LEN - 1; i++)
+                    cmd[p++] = d->name[i];
+                cmd[p] = '\0';
+                execute_command(cmd, mode, &explorer_sel);
+            } else {
+                struct File* f = fs_get(sel - dir_count);
+                int len = kstrlen(f->name);
+                if (f->type == FILE_NOIRC || (len >= 3 && kstrcmp(f->name + len - 3, ".nc") == 0)) {
+                    char cmd[MAX_CMD_LEN];
+                    int p = 0;
+                    const char* c = "run ";
+                    while (*c) cmd[p++] = *c++;
+                    for (int i = 0; f->name[i] && p < MAX_CMD_LEN - 1; i++)
+                        cmd[p++] = f->name[i];
+                    cmd[p] = '\0';
+                    execute_command(cmd, mode, &explorer_sel);
+                } else if (f->type == FILE_GAME) {
+                    execute_command("snake", mode, &explorer_sel);
+                } else {
+                    char cmd[MAX_CMD_LEN];
+                    int p = 0;
+                    const char* c = "edit ";
+                    while (*c) cmd[p++] = *c++;
+                    for (int i = 0; f->name[i] && p < MAX_CMD_LEN - 1; i++)
+                        cmd[p++] = f->name[i];
+                    cmd[p] = '\0';
+                    execute_command(cmd, mode, &explorer_sel);
+                }
+            }
         }
-        ui_draw();
+        if (*mode == MODE_BROWSER) {
+            ui_draw();
+        }
+        input_reset_modifiers();
     }
 
     return ui_get_selected();

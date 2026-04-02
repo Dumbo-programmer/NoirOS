@@ -24,6 +24,7 @@ u8 kb_read_scancode(void);
 
 /* Function declarations */
 int read_key(void);
+int wait_key(void);
 
 /* Debug helpers: toggle overlay showing last scancode/key */
 void input_toggle_debug(void);
@@ -37,5 +38,7 @@ int is_shift_pressed(void);
 int is_ctrl_pressed(void);
 int is_alt_pressed(void);
 int is_caps_lock_on(void);
+/* Reset modifier state (shift/ctrl/alt) to avoid stuck modifiers after modal reads */
+void input_reset_modifiers(void);
 
 #endif 

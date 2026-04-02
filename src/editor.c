@@ -14,6 +14,8 @@ static int  editor_cursor_x = 0;
 static int  editor_cursor_y = 0;
 static int  editor_scroll   = 0;
 static int  editor_modified = 0;
+static int  editor_needs_redraw = 1;
+static int  editor_vim_mode = 0;
 
 /* Visible editing region (inside the border/title rows).
  * Title bar at y=0, content rows 1..(HEIGHT-2), status at y=HEIGHT-1.
@@ -93,11 +95,14 @@ static void delete_char_before(int off) {
  * Redraw the editor UI: title bar, visible text window, cursor and status.
  */
 void editor_draw(void) {
-    ui_clear();
+    if (editor_needs_redraw) {
+        ui_clear();
+        editor_needs_redraw = 0;
+    }
 
     /* Title bar */
     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
-    const char *title = "NoirOS Editor  Ctrl+S save  Ctrl+X exit";
+    const char *title = (editor_vim_mode == 0) ? "NoirOS NeoVim - NORMAL MODE   :w save  :q exit" : "NoirOS NeoVim - INSERT MODE   Esc to Return";
     for (int i = 0; title[i] && i < WIDTH - 2; ++i)
         vga_putcell(1 + i, 0, title[i], 0x1F);
 
@@ -106,9 +111,10 @@ void editor_draw(void) {
         int line_no = editor_scroll + ln;
         int off     = get_line_start(line_no);
 
+        for (int x = 0; x < VIEW_W; ++x) vga_putcell(1 + x, 1 + ln, ' ', 0x0F);
+
         if (off >= editor_len) {
             /* Past end of file — blank line */
-            draw_text_in_win(0, 1, WIDTH, HEIGHT - 1, 0, ln, "", 0x07);
             continue;
         }
 
@@ -117,7 +123,7 @@ void editor_draw(void) {
         int copy_len = (llen < VIEW_W) ? llen : VIEW_W;
         for (int i = 0; i < copy_len; ++i) linebuf[i] = editor_buffer[off + i];
         linebuf[copy_len] = '\0';
-        draw_text_in_win(0, 1, WIDTH, HEIGHT - 1, 0, ln, linebuf, 0x07);
+        draw_text_in_win(0, 1, WIDTH, HEIGHT - 1, 0, ln, linebuf, 0x0F);
     }
 
     /* Cursor: draw as a reversed cell */
@@ -140,7 +146,7 @@ void editor_draw(void) {
         }
         char cur_ch = (col < line_len) ? editor_buffer[off + col] : ' ';
         /* Content rows start at screen row 1 (row 0 is the title bar). */
-        vga_putcell(1 + screen_col, 1 + cursor_screen_line, cur_ch, 0x70);
+        vga_putcell(1 + screen_col, 1 + cursor_screen_line, cur_ch, 0xF0);
     }
 
     /* Status bar: filename + modified flag */
@@ -182,8 +188,21 @@ void editor_open(const char *fname, int *mode) {
 
     editor_cursor_x = editor_cursor_y = editor_scroll = 0;
     editor_modified = 0;
+    editor_needs_redraw = 1;
+    editor_vim_mode = 0;
 
     *mode = MODE_EDITOR;
+    editor_draw();
+}
+
+/* Simple modal message: display message on status row and wait for any key */
+static void editor_modal_message(const char *msg) {
+    /* Clear status row */
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', 0x07);
+    for (int i = 0; msg[i] && i < WIDTH - 2; ++i) {
+        vga_putcell(1 + i, HEIGHT - 1, msg[i], 0x0E);
+    }
+    wait_key();
     editor_draw();
 }
 
@@ -196,6 +215,54 @@ void editor_open(const char *fname, int *mode) {
  * @param mode pointer to mode variable (may be changed to MODE_BROWSER)
  */
 void editor_handle_key(int key, int *mode) {
+    if (key == 0) return;
+
+    if (editor_vim_mode == 0) { // NORMAL MODE
+        if (key == 'i') {
+            editor_vim_mode = 1;
+            editor_needs_redraw = 1;
+            return;
+        } else if (key == 'h') {
+            key = K_ARROW_LEFT;
+        } else if (key == 'j') {
+            key = K_ARROW_DOWN;
+        } else if (key == 'k') {
+            key = K_ARROW_UP;
+        } else if (key == 'l') {
+            key = K_ARROW_RIGHT;
+        } else if (key == ':') {
+            editor_modal_message(":");
+            vga_putcell(3, HEIGHT - 1, ' ', 0x0E);
+            int c1 = wait_key();
+            vga_putcell(3, HEIGHT - 1, (char)c1, 0x0E);
+            if (c1 == 'w') {
+                int c2 = wait_key();
+                if (c2 == '\n' || c2 == '\r') { key = CTRL_S; }
+                else if (c2 == 'q') {
+                    vga_putcell(4, HEIGHT - 1, (char)c2, 0x0E);
+                    int c3 = wait_key();
+                    if (c3 == '\n' || c3 == '\r') { key = CTRL_S; editor_handle_key(key, mode); key = CTRL_X; }
+                }
+            } else if (c1 == 'q') {
+                int c2 = wait_key();
+                if (c2 == '\n' || c2 == '\r') { key = CTRL_X; }
+            }
+            editor_needs_redraw = 1;
+            if (key != CTRL_S && key != CTRL_X) return;
+        }
+        
+        // Allow ONLY movement commands through
+        if (key != CTRL_X && key != CTRL_S && key != K_ARROW_DOWN && key != K_ARROW_UP && key != K_ARROW_LEFT && key != K_ARROW_RIGHT && key != K_PAGE_UP && key != K_PAGE_DOWN) {
+            return;
+        }
+    } else { // INSERT MODE
+        if (key == K_ESC) {
+            editor_vim_mode = 0;
+            editor_needs_redraw = 1;
+            return;
+        }
+    }
+
     /* Ctrl+S and Ctrl+X are detected by the numeric value read_key() returns
      * for Ctrl+letter (letter - 'a' + 1), NOT by checking is_ctrl_pressed()
      * separately, because read_key() already encodes both. */

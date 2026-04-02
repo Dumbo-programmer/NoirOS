@@ -1,0 +1,4590 @@
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index aad1060..3d5fbea 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -1,6 +1,6 @@
+-{
+-    "files.associations": {
+-        "mode.h": "c",
+-        "game_snake.h": "c"
+-    }
++{
++    "files.associations": {
++        "mode.h": "c",
++        "game_snake.h": "c"
++    }
+ }
+\ No newline at end of file
+diff --git a/BUILD.md b/BUILD.md
+index eb074e1..62b98a1 100644
+--- a/BUILD.md
++++ b/BUILD.md
+@@ -1,101 +1,101 @@
+-# NoirOS - Build Instructions
+-
+-
+-## Building on Windows
+-
+-### Prerequisites
+-1. **WSL (Windows Subsystem for Linux)** - Install Ubuntu from Microsoft Store
+-2. **Build tools in WSL**:
+-   ```bash
+-   sudo apt update
+-   sudo apt install build-essential gcc-multilib grub-pc-bin grub-common xorriso
+-   ```
+-
+-### Quick Build
+-Use the provided build script:
+-```powershell
+-wsl bash build.sh
+-```
+-
+-This will:
+-- Compile all C sources with appropriate flags (`-m32`, `-ffreestanding`)
+-- Assemble the bootloader (`start.S`)
+-- Link everything using the custom linker script (`linker.ld`)
+-- Generate `kernel.elf`, `kernel.bin`, and `NoirOS.iso`
+-
+-### Manual Build (in WSL)
+-```bash
+-# Clean
+-rm -rf build kernel.elf kernel.bin NoirOS.iso iso
+-
+-# Compile
+-mkdir -p build
+-gcc -ffreestanding -O2 -Wall -Wextra -m32 -fno-pie -fno-pic -Iinclude -c src/*.c -o build/
+-as --32 src/start.S -o build/start.o
+-
+-# Link
+-ld -m elf_i386 -T linker.ld -nostdlib -z max-page-size=0x1000 --build-id=none -N \
+-   -o kernel.elf build/start.o build/*.o
+-
+-# Create ISO
+-mkdir -p iso/boot/grub
+-cp kernel.elf iso/boot/kernel.elf
+-cp boot/grub/grub.cfg iso/boot/grub/
+-grub-mkrescue -o NoirOS.iso iso/
+-```
+-
+-## Running
+-### With QEMU (recommended):
+-```bash
+-qemu-system-i386 -cdrom NoirOS.iso -m 512
+-```
+-
+-### With VirtualBox:
+-1. Create new VM (Type: Other, Version: Other/Unknown)
+-2. Set RAM to 512MB
+-3. Mount `NoirOS.iso` as CD-ROM
+-4. Boot from CD
+-
+-## Features
+-- **File System**: Tree-based in-memory filesystem with directories
+-- **Text Editor**: Multi-line editor with syntax support
+-- **Snake Game**: Real-time game with collision detection
+-- **Mouse Support**: Full PS/2 mouse integration with clickable UI
+-- **Power Controls**: Animated restart, shutdown, and sleep screens
+-- **Shell**: Command-line interface with history
+-
+-## Controls
+-### Mouse:
+-- Click file explorer items to select
+-- Click power buttons (Restart/Shutdown/Sleep)
+-- Click viewer panel to scroll
+-
+-### Keyboard:
+-- **F1**: Restart system
+-- **F2**: Shutdown system  
+-- **F3**: Sleep mode
+-- **Arrow Keys**: Navigate file explorer
+-- **Enter**: Command mode
+-- **ESC**: Exit modes
+-
+-## Technical Details
+-- **Architecture**: x86 (32-bit)
+-- **Boot**: Multiboot-compliant with GRUB
+-- **Memory**: Direct VGA text buffer manipulation
+-- **Input**: Raw scancode processing for keyboard/mouse
+-- **No stdlib**: All utilities implemented from scratch
+-
+-## Known Warnings
+-The build produces some warnings for missing function declarations - these are non-critical and don't affect functionality.
+-
+-## File Structure
+-```
+-src/           - Source code (.c files)
+-include/       - Header files (.h files)
+-boot/grub/     - GRUB configuration
+-build/         - Compiled object files
+-iso/           - ISO staging directory
+-build.sh       - Automated build script
+-linker.ld      - Custom linker script
+-Makefile       - Build configuration (Windows/Linux)
+-```
++# NoirOS - Build Instructions
++
++
++## Building on Windows
++
++### Prerequisites
++1. **WSL (Windows Subsystem for Linux)** - Install Ubuntu from Microsoft Store
++2. **Build tools in WSL**:
++   ```bash
++   sudo apt update
++   sudo apt install build-essential gcc-multilib grub-pc-bin grub-common xorriso
++   ```
++
++### Quick Build
++Use the provided build script:
++```powershell
++wsl bash build.sh
++```
++
++This will:
++- Compile all C sources with appropriate flags (`-m32`, `-ffreestanding`)
++- Assemble the bootloader (`start.S`)
++- Link everything using the custom linker script (`linker.ld`)
++- Generate `kernel.elf`, `kernel.bin`, and `NoirOS.iso`
++
++### Manual Build (in WSL)
++```bash
++# Clean
++rm -rf build kernel.elf kernel.bin NoirOS.iso iso
++
++# Compile
++mkdir -p build
++gcc -ffreestanding -O2 -Wall -Wextra -m32 -fno-pie -fno-pic -Iinclude -c src/*.c -o build/
++as --32 src/start.S -o build/start.o
++
++# Link
++ld -m elf_i386 -T linker.ld -nostdlib -z max-page-size=0x1000 --build-id=none -N \
++   -o kernel.elf build/start.o build/*.o
++
++# Create ISO
++mkdir -p iso/boot/grub
++cp kernel.elf iso/boot/kernel.elf
++cp boot/grub/grub.cfg iso/boot/grub/
++grub-mkrescue -o NoirOS.iso iso/
++```
++
++## Running
++### With QEMU (recommended):
++```bash
++qemu-system-i386 -cdrom NoirOS.iso -m 512
++```
++
++### With VirtualBox:
++1. Create new VM (Type: Other, Version: Other/Unknown)
++2. Set RAM to 512MB
++3. Mount `NoirOS.iso` as CD-ROM
++4. Boot from CD
++
++## Features
++- **File System**: Tree-based in-memory filesystem with directories
++- **Text Editor**: Multi-line editor with syntax support
++- **Snake Game**: Real-time game with collision detection
++- **Mouse Support**: Full PS/2 mouse integration with clickable UI
++- **Power Controls**: Animated restart, shutdown, and sleep screens
++- **Shell**: Command-line interface with history
++
++## Controls
++### Mouse:
++- Click file explorer items to select
++- Click power buttons (Restart/Shutdown/Sleep)
++- Click viewer panel to scroll
++
++### Keyboard:
++- **F1**: Restart system
++- **F2**: Shutdown system  
++- **F3**: Sleep mode
++- **Arrow Keys**: Navigate file explorer
++- **Enter**: Command mode
++- **ESC**: Exit modes
++
++## Technical Details
++- **Architecture**: x86 (32-bit)
++- **Boot**: Multiboot-compliant with GRUB
++- **Memory**: Direct VGA text buffer manipulation
++- **Input**: Raw scancode processing for keyboard/mouse
++- **No stdlib**: All utilities implemented from scratch
++
++## Known Warnings
++The build produces some warnings for missing function declarations - these are non-critical and don't affect functionality.
++
++## File Structure
++```
++src/           - Source code (.c files)
++include/       - Header files (.h files)
++boot/grub/     - GRUB configuration
++build/         - Compiled object files
++iso/           - ISO staging directory
++build.sh       - Automated build script
++linker.ld      - Custom linker script
++Makefile       - Build configuration (Windows/Linux)
++```
+diff --git a/FEATURES.md b/FEATURES.md
+deleted file mode 100644
+index 0079744..0000000
+--- a/FEATURES.md
++++ /dev/null
+@@ -1,76 +0,0 @@
+-# NoirOS Enhanced Features
+-
+-## ✅ COMPLETED: Power Button Implementation & Colorful Screens
+-
+-### 🔧 What Was Fixed:
+-1. **Button Functionality**: Sleep, restart, and shutdown buttons now work properly
+-2. **Mouse Support**: All UI elements are now clickable with mouse
+-3. **Colorful Screens**: Added animated power screens with gradients and animations
+-4. **Visual Feedback**: Button press states with color changes
+-
+-### 🖱️ Mouse Support Added:
+-- **File Explorer**: Click to select files/directories
+-- **Power Buttons**: Click restart/shutdown/sleep buttons directly
+-- **Viewer Panel**: Click to scroll up/down
+-- **Visual Cursor**: Different cursors for each mode (>, |, +)
+-
+-### 🎨 Colorful Power Screens:
+-
+-#### 🟢 Restart Screen:
+-- Green gradient background
+-- Animated spinning indicator
+-- "System is restarting..." message
+-- Progress animation
+-
+-#### 🔴 Shutdown Screen:
+-- Red gradient background  
+-- Animated progress bar
+-- "NoirOS is shutting down..." message
+-- Step-by-step shutdown process display
+-
+-#### 🔵 Sleep Screen:
+-- Blue gradient background
+-- Dimming animation effect
+-- "Entering sleep mode..." message
+-- Wake-up brightening animation
+-
+-### 🎮 Button Controls:
+-- **F1** or **Click**: Restart system
+-- **F2** or **Click**: Shutdown system  
+-- **F3** or **Click**: Sleep mode
+-
+-### 🏗️ Technical Implementation:
+-- **Button Structure**: New `ui_button_t` structure for clickable elements
+-- **Mouse Integration**: Mouse state tracking with click detection
+-- **Screen Rendering**: Direct VGA buffer manipulation for animations
+-- **Color Gradients**: Dynamic attribute calculation for visual effects
+-- **Animation Timing**: Delay loops for smooth transitions
+-
+-### 🔄 Integration Points:
+-- **kernel.c**: Mouse cursor display and click handling
+-- **ui.c**: Button rendering and power screen functions
+-- **mouse.c**: Hardware mouse support via PS/2 interface
+-- **vga.c**: Enhanced with cell read functions for cursor management
+-
+-### 🧪 How to Test:
+-1. Boot NoirOS ISO in QEMU or VirtualBox
+-2. Use mouse to click power buttons in Controls panel
+-3. Use F1/F2/F3 keys for keyboard shortcuts
+-4. Observe colorful animated power screens
+-5. Click in file explorer to select items
+-6. Click in viewer panel to scroll content
+-
+-### 📁 Files Modified:
+-- `include/ui.h` - Added button structures and function declarations
+-- `src/ui.c` - Implemented power screens and mouse handling
+-- `include/vga.h` - Added cell read function declarations  
+-- `src/kernel.c` - Added mouse integration and cursor display
+-- `build.sh` - Fixed linker configuration
+-
+-### 🚀 Performance:
+-- Smooth animations with configurable timing
+-- Responsive mouse cursor updates
+-- Efficient VGA buffer operations
+-- Minimal memory footprint for button structures
+-
+-All power functionality now works as intended with both keyboard shortcuts and mouse clicks!
+diff --git a/FIXES.md b/FIXES.md
+deleted file mode 100644
+index 4927307..0000000
+--- a/FIXES.md
++++ /dev/null
+@@ -1,86 +0,0 @@
+-# NoirOS Fixes Applied
+-
+-## Issues Fixed
+-
+-### 1. ✅ File Selection Not Working
+-**Problem**: Arrow keys couldn't navigate the file list properly
+-**Root Cause**: File count calculation was wrong - only counted files, not directories
+-**Fix**: Updated `kernel.c` line ~76-84 to properly calculate `total = fs_dir_count() + fs_count()`
+-
+-### 2. ✅ Power Screens Disappear Too Fast  
+-**Problem**: Power button screens vanished instantly
+-**Root Cause**: No proper timing or user interaction
+-**Fix**: Added 5-second countdowns with ESC cancel option for all power screens
+-
+-### 3. ✅ Power Functions Look Fake
+-**Problem**: No realistic simulation of power operations
+-**Root Cause**: Just visual effects with no staging or progression
+-**Improvements**:
+-- **Restart Screen**: 5-second countdown → Progress simulation → "System Restarted" confirmation
+-- **Shutdown Screen**: 5-second countdown → Multi-stage shutdown process → Black "System Halted" screen  
+-- **Sleep Screen**: 3-second countdown → Gradual dimming animation → Wake-up brightening
+-
+-## New Features Added
+-
+-### Enhanced Power Operations
+-- **Countdown Timers**: All power operations now have countdowns (3-5 seconds)
+-- **Cancellation**: Press ESC during countdown to cancel any power operation
+-- **Progress Indication**: Visual progress bars and status messages
+-- **Realistic Stages**: 
+-  - Shutdown: "Stopping processes" → "Saving state" → "Unmounting drives" → "Powering down"
+-  - Sleep: Gradual screen dimming → Complete blackout → Wake up brightening
+-  - Restart: System state saving → Restart simulation → Return to OS
+-
+-### Better User Experience
+-- **Clear Instructions**: "Press ESC to cancel" shown during countdowns
+-- **Visual Feedback**: Color-coded progress bars and status messages
+-- **Proper Waiting**: System waits for user input before returning to main UI
+-- **Smooth Transitions**: Gradual animations instead of instant changes
+-
+-## Testing Instructions
+-
+-### File Selection
+-1. ✅ Use arrow keys (↑↓) to navigate file list
+-2. ✅ Use WASD keys as alternative navigation
+-3. ✅ Files and directories should be properly counted and selectable
+-
+-### Power Button Testing
+-1. **F1 (Restart)**:
+-   - Shows green gradient screen
+-   - 5-second countdown with option to press ESC
+-   - If not cancelled: simulates restart process
+-   - Shows "System Restarted" confirmation
+-   - Press any key to return
+-
+-2. **F2 (Shutdown)**:
+-   - Shows red gradient screen  
+-   - 5-second countdown with ESC option
+-   - If not cancelled: shows shutdown stages with progress bar
+-   - Ends with black "System Halted" screen
+-   - Press any key to return
+-
+-3. **F3 (Sleep)**:
+-   - Shows blue gradient screen
+-   - 3-second countdown with ESC option
+-   - If not cancelled: gradual dimming to black
+-   - Press any key to wake up with brightening animation
+-   - Returns to normal operation
+-
+-### Verification Checklist
+-- [ ] Arrow keys navigate files/directories correctly
+-- [ ] Power buttons show countdowns (not instant)
+-- [ ] ESC cancels power operations during countdown
+-- [ ] Each power operation has distinct visual progression
+-- [ ] All power screens wait for user input before returning
+-- [ ] Mouse cursor still works during all operations
+-- [ ] System remains responsive throughout
+-
+-## Technical Details
+-
+-- **Input System**: Maintained non-blocking keyboard input for mouse compatibility
+-- **Timing**: Used volatile loops for delays (hardware-independent)
+-- **Visual Effects**: Gradient backgrounds, progress bars, color transitions
+-- **Error Handling**: ESC key detection during critical operations
+-- **Memory**: No additional memory allocation - uses stack variables only
+-
+-The power operations now feel much more realistic and give users proper control and feedback!
+diff --git a/License b/License
+index 07e1250..6d4b9f7 100644
+--- a/License
++++ b/License
+@@ -1,21 +1,21 @@
+-MIT License
+-
+-Copyright (c) [2025] [TawhidBinOmar]
+-
+-Permission is hereby granted, free of charge, to any person obtaining a copy
+-of this software and associated documentation files (the "Software"), to deal
+-in the Software without restriction, including without limitation the rights
+-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+-copies of the Software, and to permit persons to whom the Software is
+-furnished to do so, subject to the following conditions:
+-
+-The above copyright notice and this permission notice shall be included in all
+-copies or substantial portions of the Software.
+-
+-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
++MIT License
++
++Copyright (c) [2025] [TawhidBinOmar]
++
++Permission is hereby granted, free of charge, to any person obtaining a copy
++of this software and associated documentation files (the "Software"), to deal
++in the Software without restriction, including without limitation the rights
++to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
++copies of the Software, and to permit persons to whom the Software is
++furnished to do so, subject to the following conditions:
++
++The above copyright notice and this permission notice shall be included in all
++copies or substantial portions of the Software.
++
++THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
++IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
++FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
++AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
++LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
++OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ SOFTWARE.
+\ No newline at end of file
+diff --git a/Makefile b/Makefile
+index c151883..1dd7342 100644
+--- a/Makefile
++++ b/Makefile
+@@ -1,70 +1,70 @@
+-CC := gcc
+-AS := as
+-LD := ld
+-OBJCOPY := objcopy
+-
+-CFLAGS := -ffreestanding -O2 -Wall -Wextra -m32 -fno-pie -fno-pic -Iinclude
+-
+-SRC := src
+-OBJ := build
+-
+-SRCS := $(wildcard $(SRC)/*.c)
+-OBJS := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
+-ASM := $(SRC)/start.S
+-ASMOBJ := $(OBJ)/start.o
+-
+-ISO_DIR := iso
+-ISO := NoirOS.iso
+-KERNEL_ELF := kernel.elf
+-KERNEL_BIN := kernel.bin
+-
+-.PHONY: all clean prepare_iso run
+-
+-all: $(KERNEL_ELF) $(KERNEL_BIN) $(ISO)
+-
+-$(OBJ):
+-	mkdir -p $(OBJ)
+-
+-$(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
+-	$(CC) $(CFLAGS) -c $< -o $@ 
+-
+-$(ASMOBJ): $(ASM) | $(OBJ)
+-	$(AS) --32 $< -o $@
+-
+-# Link into ELF using linker.ld
+-$(KERNEL_ELF): $(OBJS) $(ASMOBJ) linker.ld
+-	$(LD) -m elf_i386 -T linker.ld -nostdlib -z max-page-size=0x1000 \
+-	     --build-id=none -N \
+-	     -o $(KERNEL_ELF) $(ASMOBJ) $(OBJS)
+-	@echo "Built ELF kernel: $(KERNEL_ELF)"
+-
+-
+-# Convert ELF -> raw binary
+-$(KERNEL_BIN): $(KERNEL_ELF)
+-	$(OBJCOPY) -O binary $(KERNEL_ELF) $(KERNEL_BIN)
+-	@echo "Built raw binary: $(KERNEL_BIN)"
+-
+-# Copy ELF kernel into ISO (GRUB prefers ELF!)
+-prepare_iso: $(KERNEL_ELF)
+-	@mkdir -p $(ISO_DIR)/boot/grub
+-	@cp $(KERNEL_ELF) $(ISO_DIR)/boot/kernel.elf
+-	@cp boot/grub/grub.cfg $(ISO_DIR)/boot/grub/
+-
+-$(ISO): prepare_iso
+-	@grub-mkrescue -o $(ISO) $(ISO_DIR) >/dev/null 2>&1 || \
+-	 (echo "grub-mkrescue failed - ensure grub & xorriso are installed"; false)
+-	@echo "Created $(ISO)"
+-
+-run: $(ISO)
+-	qemu-system-i386 -cdrom $(ISO) -m 512
+-
+-clean:
+-ifeq ($(OS),Windows_NT)
+-	if exist $(OBJ) rmdir /s /q $(OBJ)
+-	if exist $(KERNEL_ELF) del /q $(KERNEL_ELF)
+-	if exist $(KERNEL_BIN) del /q $(KERNEL_BIN)
+-	if exist $(ISO) del /q $(ISO)
+-	if exist $(ISO_DIR) rmdir /s /q $(ISO_DIR)
+-else
+-	rm -rf $(OBJ) $(KERNEL_ELF) $(KERNEL_BIN) $(ISO) $(ISO_DIR)
+-endif
++CC := gcc
++AS := as
++LD := ld
++OBJCOPY := objcopy
++
++CFLAGS := -ffreestanding -O2 -Wall -Wextra -m32 -fno-pie -fno-pic -Iinclude
++
++SRC := src
++OBJ := build
++
++SRCS := $(wildcard $(SRC)/*.c)
++OBJS := $(patsubst $(SRC)/%.c,$(OBJ)/%.o,$(SRCS))
++ASM := $(SRC)/start.S
++ASMOBJ := $(OBJ)/start.o
++
++ISO_DIR := iso
++ISO := NoirOS.iso
++KERNEL_ELF := kernel.elf
++KERNEL_BIN := kernel.bin
++
++.PHONY: all clean prepare_iso run
++
++all: $(KERNEL_ELF) $(KERNEL_BIN) $(ISO)
++
++$(OBJ):
++	mkdir -p $(OBJ)
++
++$(OBJ)/%.o: $(SRC)/%.c | $(OBJ)
++	$(CC) $(CFLAGS) -c $< -o $@ 
++
++$(ASMOBJ): $(ASM) | $(OBJ)
++	$(AS) --32 $< -o $@
++
++# Link into ELF using linker.ld
++$(KERNEL_ELF): $(OBJS) $(ASMOBJ) linker.ld
++	$(LD) -m elf_i386 -T linker.ld -nostdlib -z max-page-size=0x1000 \
++	     --build-id=none -N \
++	     -o $(KERNEL_ELF) $(ASMOBJ) $(OBJS)
++	@echo "Built ELF kernel: $(KERNEL_ELF)"
++
++
++# Convert ELF -> raw binary
++$(KERNEL_BIN): $(KERNEL_ELF)
++	$(OBJCOPY) -O binary $(KERNEL_ELF) $(KERNEL_BIN)
++	@echo "Built raw binary: $(KERNEL_BIN)"
++
++# Copy ELF kernel into ISO (GRUB prefers ELF!)
++prepare_iso: $(KERNEL_ELF)
++	@mkdir -p $(ISO_DIR)/boot/grub
++	@cp $(KERNEL_ELF) $(ISO_DIR)/boot/kernel.elf
++	@cp boot/grub/grub.cfg $(ISO_DIR)/boot/grub/
++
++$(ISO): prepare_iso
++	@grub-mkrescue -o $(ISO) $(ISO_DIR) >/dev/null 2>&1 || \
++	 (echo "grub-mkrescue failed - ensure grub & xorriso are installed"; false)
++	@echo "Created $(ISO)"
++
++run: $(ISO)
++	qemu-system-i386 -cdrom $(ISO) -m 512
++
++clean:
++ifeq ($(OS),Windows_NT)
++	if exist $(OBJ) rmdir /s /q $(OBJ)
++	if exist $(KERNEL_ELF) del /q $(KERNEL_ELF)
++	if exist $(KERNEL_BIN) del /q $(KERNEL_BIN)
++	if exist $(ISO) del /q $(ISO)
++	if exist $(ISO_DIR) rmdir /s /q $(ISO_DIR)
++else
++	rm -rf $(OBJ) $(KERNEL_ELF) $(KERNEL_BIN) $(ISO) $(ISO_DIR)
++endif
+diff --git a/NoirOS.iso b/NoirOS.iso
+index c13f23b..7bd796e 100644
+Binary files a/NoirOS.iso and b/NoirOS.iso differ
+diff --git a/POWER_OPS.md b/POWER_OPS.md
+index 35632b4..c39514a 100644
+--- a/POWER_OPS.md
++++ b/POWER_OPS.md
+@@ -1,63 +1,63 @@
+-# NoirOS Real Power Operations
+-
+-## What Actually Happens Now
+-
+-### F1 - Restart
+-- **Language**: "Gonna restart now...", "Killing processes", "BRB!"
+-- **Countdown**: 3 seconds (press ESC to cancel)
+-- **Action**: Actually attempts to restart the NoirOS kernel by jumping to boot address
+-- **Result**: System will try to reboot itself (may cause QEMU to restart or crash)
+-
+-### F2 - Shutdown  
+-- **Language**: "Time to shut down...", "Bye in 3...", "See ya!"
+-- **Countdown**: 3 seconds (press ESC to cancel)
+-- **Action**: Halts the CPU permanently with `cli; hlt` instruction
+-- **Result**: QEMU will freeze/hang (like a real computer being powered off)
+-
+-### F3 - Sleep
+-- **Language**: "Time for a nap...", "Sleepy", "Wakey wakey", "Morning!"
+-- **Countdown**: 2 seconds (press ESC to cancel)
+-- **Action**: Uses `hlt` instruction to put CPU in low-power state
+-- **Result**: System truly sleeps until you press any key to wake up
+-
+-## Language Style
+-- **Informal**: "Gonna restart", "Time for a nap", "See ya!"
+-- **Casual**: "BRB!", "Morning!", "Wakey wakey"
+-- **Fewer Comments**: Removed most technical comments from code
+-- **Direct**: "Killing processes" instead of "Stopping user processes"
+-
+-## Technical Implementation
+-
+-### Restart
+-```c
+-void (*restart_kernel)(void) = (void (*)(void))0x100000;
+-restart_kernel(); // Jump to kernel start address
+-```
+-
+-### Shutdown
+-```c
+-while(1) {
+-    __asm__ volatile ("cli; hlt"); // Disable interrupts and halt forever
+-}
+-```
+-
+-### Sleep
+-```c
+-__asm__ volatile ("hlt"); // Halt until interrupt (keypress)
+-```
+-
+-## User Experience
+-
+-1. **More Natural**: Power operations feel like a real OS
+-2. **Shorter Countdowns**: 2-3 seconds instead of 5
+-3. **Casual Language**: Friendlier, less corporate
+-4. **Real Effects**: Actually impacts the system state
+-5. **Escape Hatches**: Still can cancel with ESC during countdown
+-
+-## What to Expect
+-
+-- **Shutdown**: QEMU window will become unresponsive (like a powered-off computer)
+-- **Restart**: May cause QEMU to restart or require manual restart
+-- **Sleep**: Screen goes dark, press any key to wake up with animation
+-
+-The power buttons now behave like a real operating system within the QEMU environment!
++# NoirOS Real Power Operations
++
++## What Actually Happens Now
++
++### F1 - Restart
++- **Language**: "Gonna restart now...", "Killing processes", "BRB!"
++- **Countdown**: 3 seconds (press ESC to cancel)
++- **Action**: Actually attempts to restart the NoirOS kernel by jumping to boot address
++- **Result**: System will try to reboot itself (may cause QEMU to restart or crash)
++
++### F2 - Shutdown  
++- **Language**: "Time to shut down...", "Bye in 3...", "See ya!"
++- **Countdown**: 3 seconds (press ESC to cancel)
++- **Action**: Halts the CPU permanently with `cli; hlt` instruction
++- **Result**: QEMU will freeze/hang (like a real computer being powered off)
++
++### F3 - Sleep
++- **Language**: "Time for a nap...", "Sleepy", "Wakey wakey", "Morning!"
++- **Countdown**: 2 seconds (press ESC to cancel)
++- **Action**: Uses `hlt` instruction to put CPU in low-power state
++- **Result**: System truly sleeps until you press any key to wake up
++
++## Language Style
++- **Informal**: "Gonna restart", "Time for a nap", "See ya!"
++- **Casual**: "BRB!", "Morning!", "Wakey wakey"
++- **Fewer Comments**: Removed most technical comments from code
++- **Direct**: "Killing processes" instead of "Stopping user processes"
++
++## Technical Implementation
++
++### Restart
++```c
++void (*restart_kernel)(void) = (void (*)(void))0x100000;
++restart_kernel(); // Jump to kernel start address
++```
++
++### Shutdown
++```c
++while(1) {
++    __asm__ volatile ("cli; hlt"); // Disable interrupts and halt forever
++}
++```
++
++### Sleep
++```c
++__asm__ volatile ("hlt"); // Halt until interrupt (keypress)
++```
++
++## User Experience
++
++1. **More Natural**: Power operations feel like a real OS
++2. **Shorter Countdowns**: 2-3 seconds instead of 5
++3. **Casual Language**: Friendlier, less corporate
++4. **Real Effects**: Actually impacts the system state
++5. **Escape Hatches**: Still can cancel with ESC during countdown
++
++## What to Expect
++
++- **Shutdown**: QEMU window will become unresponsive (like a powered-off computer)
++- **Restart**: May cause QEMU to restart or require manual restart
++- **Sleep**: Screen goes dark, press any key to wake up with animation
++
++The power buttons now behave like a real operating system within the QEMU environment!
+diff --git a/QUICKREF.md b/QUICKREF.md
+index 7b023cd..6ccc0d7 100644
+--- a/QUICKREF.md
++++ b/QUICKREF.md
+@@ -1,47 +1,47 @@
+-# NoirOS Quick Reference
+-
+-## Overview
+-NoirOS is a minimalist hobby operating system with a modular architecture, basic file system, and simple UI.
+-
+-## Features
+-- File explorer and viewer
+-- Editable files and directories
+-- Command input (ls, edit, help, snake)
+-- Power controls (restart, shutdown, sleep)
+-- Mouse and keyboard support
+-
+-## Main Components
+-- `src/kernel.c`: Main loop, mode switching, command input
+-- `src/ui.c`: UI drawing, explorer, viewer, power screens
+-- `src/fs.c`: In-memory file system, directory and file operations
+-- `src/editor.c`: Basic text editor
+-- `src/game_snake.c`: Snake game
+-- `include/*.h`: Header files for each subsystem
+-
+-## Build & Run
+-- See `BUILD.md` for Windows build instructions (WSL required)
+-- Use `wsl bash build.sh` to build
+-- Run with QEMU: `qemu-system-i386 -cdrom NoirOS.iso -m 512`
+-
+-## Commands (in UI)
+-- `ls` / `dir`: List files
+-- `edit <file>`: Open editor
+-- `help`: Show help file
+-- `snake`: Launch snake game
+-
+-## Power Controls
+-- F1: Restart
+-- F2: Shutdown
+-- F3: Sleep
+-
+-## Extending NoirOS
+-- Add new apps/games in `src/`
+-- Register in `kernel.c` and UI
+-- Use modular headers for new features
+-
+-## Troubleshooting
+-- If build fails, check WSL and required packages
+-- For UI issues, verify VGA and input modules
+-
+-## License
+-MIT License
++# NoirOS Quick Reference
++
++## Overview
++NoirOS is a minimalist hobby operating system with a modular architecture, basic file system, and simple UI.
++
++## Features
++- File explorer and viewer
++- Editable files and directories
++- Command input (ls, edit, help, snake)
++- Power controls (restart, shutdown, sleep)
++- Mouse and keyboard support
++
++## Main Components
++- `src/kernel.c`: Main loop, mode switching, command input
++- `src/ui.c`: UI drawing, explorer, viewer, power screens
++- `src/fs.c`: In-memory file system, directory and file operations
++- `src/editor.c`: Basic text editor
++- `src/game_snake.c`: Snake game
++- `include/*.h`: Header files for each subsystem
++
++## Build & Run
++- See `BUILD.md` for Windows build instructions (WSL required)
++- Use `wsl bash build.sh` to build
++- Run with QEMU: `qemu-system-i386 -cdrom NoirOS.iso -m 512`
++
++## Commands (in UI)
++- `ls` / `dir`: List files
++- `edit <file>`: Open editor
++- `help`: Show help file
++- `snake`: Launch snake game
++
++## Power Controls
++- F1: Restart
++- F2: Shutdown
++- F3: Sleep
++
++## Extending NoirOS
++- Add new apps/games in `src/`
++- Register in `kernel.c` and UI
++- Use modular headers for new features
++
++## Troubleshooting
++- If build fails, check WSL and required packages
++- For UI issues, verify VGA and input modules
++
++## License
++MIT License
+diff --git a/Readme.md b/Readme.md
+index b2471d4..b61827a 100644
+--- a/Readme.md
++++ b/Readme.md
+@@ -1,47 +1,47 @@
+-# NoirOS
+-
+-NoirOS is a lightweight hobby operating system 
+-
+-## Features
+-
+-- Minimalist and fast user interface
+-- Modular architecture
+-
+-## Project Structure
+-
+-```
+-/NoirOS
+-├── kernel/
+-├── docs/
+-├── src/
+-├── assets/
+-├── LICENSE
+-└── Readme.md
+-```
+-
+-## Demo
+-
+-Below are screenshots showcasing NoirOS in action:
+-
+-![NoirOS Desktop](Images/image.png)
+-
+-![File Manager](Images/image2.png)
+-
+-![Terminal Emulator](Images/image3.png)
+-
+-![Settings Panel](Images/image4.png)
+-
+-## Getting Started
+-
+-1. Clone the repository:
+-    ```bash
+-    git clone https://github.com/Dumbo-programmer/NoirOS.git
+-    ```
+-2. Read BUILD.md
+-
+-## Contributing
+-
+-
+-## License
+-
+-This project is licensed under the MIT License.
++# NoirOS
++
++NoirOS is a lightweight hobby operating system 
++
++## Features
++
++- Minimalist and fast user interface
++- Modular architecture
++
++## Project Structure
++
++```
++/NoirOS
++├── kernel/
++├── docs/
++├── src/
++├── assets/
++├── LICENSE
++└── Readme.md
++```
++
++## Demo
++
++Below are screenshots showcasing NoirOS in action:
++
++![NoirOS Desktop](Images/image.png)
++
++![File Manager](Images/image2.png)
++
++![Terminal Emulator](Images/image3.png)
++
++![Settings Panel](Images/image4.png)
++
++## Getting Started
++
++1. Clone the repository:
++    ```bash
++    git clone https://github.com/Dumbo-programmer/NoirOS.git
++    ```
++2. Read BUILD.md
++
++## Contributing
++
++
++## License
++
++This project is licensed under the MIT License.
+diff --git a/TESTING.md b/TESTING.md
+index fa2b1dc..85e454a 100644
+--- a/TESTING.md
++++ b/TESTING.md
+@@ -1,80 +1,80 @@
+-# NoirOS Testing Guide
+-
+-## What We Fixed
+-
+-### 1. Power Button Implementation
+-- **F1 Key**: Restart with animated colorful screen
+-- **F2 Key**: Shutdown with animated colorful screen  
+-- **F3 Key**: Sleep with animated colorful screen
+-- All power functions now have visual feedback with color cycling
+-
+-### 2. Mouse Support
+-- Added PS/2 mouse driver integration
+-- Mouse cursor display in kernel main loop
+-- Click detection for UI elements
+-- Mouse coordinates tracking
+-
+-### 3. UI Button System
+-- Created button structure for clickable elements
+-- Mouse click handling for buttons
+-- Visual feedback on button interactions
+-- Power screen animations
+-
+-### 4. Non-Blocking Input System
+-- Fixed keyboard input to be non-blocking
+-- Prevents mouse cursor from freezing
+-- Allows simultaneous keyboard and mouse processing
+-- Maintains system responsiveness
+-
+-## Testing Checklist
+-
+-### Basic Functionality
+-- [ ] OS boots to file browser
+-- [ ] Arrow keys navigate file list
+-- [ ] Enter key activates command mode
+-- [ ] Basic commands work: `help`, `ls`
+-
+-### Mouse Testing
+-- [ ] Mouse cursor appears and moves smoothly
+-- [ ] No cursor freezing when typing
+-- [ ] Clicking on UI elements works
+-- [ ] Mouse coordinates update properly
+-
+-### Power Button Testing
+-- [ ] F1 key shows restart screen with colors
+-- [ ] F2 key shows shutdown screen with colors
+-- [ ] F3 key shows sleep screen with colors
+-- [ ] Power screens have animated color cycling
+-- [ ] ESC key exits from power screens
+-
+-### Application Testing
+-- [ ] `snake` command starts Snake game
+-- [ ] Snake game controls work (WASD/arrows)
+-- [ ] `edit filename` opens text editor
+-- [ ] Text editor allows typing and saving
+-- [ ] File system shows sample files
+-
+-### Integration Testing
+-- [ ] Switching between applications works
+-- [ ] Mouse and keyboard work simultaneously
+-- [ ] No system freezing or hanging
+-- [ ] All previous functionality preserved
+-
+-## Known Issues to Watch For
+-1. Input system blocking (should be fixed)
+-2. Mouse cursor disappearing (should be fixed)
+-3. UI elements not responding to clicks (should be fixed)
+-4. Power buttons not working (should be fixed)
+-
+-## QEMU Controls
+-- **Mouse**: Captured automatically when clicking in window
+-- **Release Mouse**: Ctrl+Alt+G
+-- **Screenshot**: Ctrl+Alt+S
+-- **Quit QEMU**: Ctrl+C in terminal or close window
+-
+-## Success Criteria
+-✅ All basic functionality works as before
+-✅ Power buttons show colorful animated screens
+-✅ Mouse support is fully integrated
+-✅ System remains responsive during all operations
+-✅ No functionality regression from original system
++# NoirOS Testing Guide
++
++## What We Fixed
++
++### 1. Power Button Implementation
++- **F1 Key**: Restart with animated colorful screen
++- **F2 Key**: Shutdown with animated colorful screen  
++- **F3 Key**: Sleep with animated colorful screen
++- All power functions now have visual feedback with color cycling
++
++### 2. Mouse Support
++- Added PS/2 mouse driver integration
++- Mouse cursor display in kernel main loop
++- Click detection for UI elements
++- Mouse coordinates tracking
++
++### 3. UI Button System
++- Created button structure for clickable elements
++- Mouse click handling for buttons
++- Visual feedback on button interactions
++- Power screen animations
++
++### 4. Non-Blocking Input System
++- Fixed keyboard input to be non-blocking
++- Prevents mouse cursor from freezing
++- Allows simultaneous keyboard and mouse processing
++- Maintains system responsiveness
++
++## Testing Checklist
++
++### Basic Functionality
++- [ ] OS boots to file browser
++- [ ] Arrow keys navigate file list
++- [ ] Enter key activates command mode
++- [ ] Basic commands work: `help`, `ls`
++
++### Mouse Testing
++- [ ] Mouse cursor appears and moves smoothly
++- [ ] No cursor freezing when typing
++- [ ] Clicking on UI elements works
++- [ ] Mouse coordinates update properly
++
++### Power Button Testing
++- [ ] F1 key shows restart screen with colors
++- [ ] F2 key shows shutdown screen with colors
++- [ ] F3 key shows sleep screen with colors
++- [ ] Power screens have animated color cycling
++- [ ] ESC key exits from power screens
++
++### Application Testing
++- [ ] `snake` command starts Snake game
++- [ ] Snake game controls work (WASD/arrows)
++- [ ] `edit filename` opens text editor
++- [ ] Text editor allows typing and saving
++- [ ] File system shows sample files
++
++### Integration Testing
++- [ ] Switching between applications works
++- [ ] Mouse and keyboard work simultaneously
++- [ ] No system freezing or hanging
++- [ ] All previous functionality preserved
++
++## Known Issues to Watch For
++1. Input system blocking (should be fixed)
++2. Mouse cursor disappearing (should be fixed)
++3. UI elements not responding to clicks (should be fixed)
++4. Power buttons not working (should be fixed)
++
++## QEMU Controls
++- **Mouse**: Captured automatically when clicking in window
++- **Release Mouse**: Ctrl+Alt+G
++- **Screenshot**: Ctrl+Alt+S
++- **Quit QEMU**: Ctrl+C in terminal or close window
++
++## Success Criteria
++✅ All basic functionality works as before
++✅ Power buttons show colorful animated screens
++✅ Mouse support is fully integrated
++✅ System remains responsive during all operations
++✅ No functionality regression from original system
+diff --git a/UNITTESTS.md b/UNITTESTS.md
+index a6b5597..7de71a6 100644
+--- a/UNITTESTS.md
++++ b/UNITTESTS.md
+@@ -1,44 +1,44 @@
+-# NoirOS Unit Test Plan
+-
+-## Overview
+-This file describes basic unit tests for core NoirOS modules. Since NoirOS is a freestanding OS, tests are written as C functions to be run in a test mode or via a test harness.
+-
+-## Test Functions
+-
+-### File: src/fs.c
+-- `test_fs_init()`: Verify root directory and sample files are created.
+-- `test_fs_create_file()`: Create a file, check name/content, verify count.
+-- `test_fs_delete_file()`: Delete a file, verify count decreases.
+-- `test_fs_create_dir()`: Create a directory, check name, verify count.
+-- `test_fs_delete_dir()`: Delete a directory, verify count decreases.
+-
+-### File: src/util.c
+-- `test_kstrncpy()`: Copy string, check NUL termination.
+-- `test_kstrcmp()`: Compare strings, check result.
+-- `test_kstrlen()`: Check length for various strings.
+-
+-### File: src/ui.c
+-- `test_ui_set_selected()`: Set selection, verify bounds.
+-- `test_ui_scroll_viewer()`: Scroll, verify limits.
+-
+-### File: src/kernel.c
+-- `test_handle_command_input()`: Simulate command input, verify mode changes and explorer selection.
+-
+-## Example Test Function (C)
+-```c
+-void test_kstrncpy() {
+-    char dest[10];
+-    kstrncpy(dest, "abc", 10);
+-    assert(dest[0] == 'a' && dest[1] == 'b' && dest[2] == 'c' && dest[3] == '\0');
+-}
+-```
+-
+-## Running Tests
+-- Add a test mode to kernel.c (e.g., `#ifdef TEST_MODE`) to call test functions at boot.
+-- Print results to VGA or serial output.
+-- Use assert macros for validation.
+-
+-## Notes
+-- Tests should not interfere with normal OS operation.
+-- Keep tests simple and self-contained.
+-- Expand test coverage as modules grow.
++# NoirOS Unit Test Plan
++
++## Overview
++This file describes basic unit tests for core NoirOS modules. Since NoirOS is a freestanding OS, tests are written as C functions to be run in a test mode or via a test harness.
++
++## Test Functions
++
++### File: src/fs.c
++- `test_fs_init()`: Verify root directory and sample files are created.
++- `test_fs_create_file()`: Create a file, check name/content, verify count.
++- `test_fs_delete_file()`: Delete a file, verify count decreases.
++- `test_fs_create_dir()`: Create a directory, check name, verify count.
++- `test_fs_delete_dir()`: Delete a directory, verify count decreases.
++
++### File: src/util.c
++- `test_kstrncpy()`: Copy string, check NUL termination.
++- `test_kstrcmp()`: Compare strings, check result.
++- `test_kstrlen()`: Check length for various strings.
++
++### File: src/ui.c
++- `test_ui_set_selected()`: Set selection, verify bounds.
++- `test_ui_scroll_viewer()`: Scroll, verify limits.
++
++### File: src/kernel.c
++- `test_handle_command_input()`: Simulate command input, verify mode changes and explorer selection.
++
++## Example Test Function (C)
++```c
++void test_kstrncpy() {
++    char dest[10];
++    kstrncpy(dest, "abc", 10);
++    assert(dest[0] == 'a' && dest[1] == 'b' && dest[2] == 'c' && dest[3] == '\0');
++}
++```
++
++## Running Tests
++- Add a test mode to kernel.c (e.g., `#ifdef TEST_MODE`) to call test functions at boot.
++- Print results to VGA or serial output.
++- Use assert macros for validation.
++
++## Notes
++- Tests should not interfere with normal OS operation.
++- Keep tests simple and self-contained.
++- Expand test coverage as modules grow.
+diff --git a/boot/grub/grub.cfg b/boot/grub/grub.cfg
+index 714d717..df54751 100644
+--- a/boot/grub/grub.cfg
++++ b/boot/grub/grub.cfg
+@@ -1,94 +1,94 @@
+-# GRUB Configuration for NoirOS - Enhanced Version
+-
+-# Timeout and default
+-set timeout=8
+-set default=0
+-
+-# Color scheme - Dark theme with cyan/purple accents
+-set color_normal=white/black
+-set color_highlight=black/cyan
+-
+-# Menu colors
+-set menu_color_normal=white/black
+-set menu_color_highlight=black/cyan
+-
+-# Background & terminal
+-terminal_output console
+-set gfxmode=auto
+-set gfxpayload=keep
+-# Optional background image (uncomment if available)
+-# background_image /boot/grub/noirbg.png
+-# Optional custom font
+-# loadfont /boot/grub/fonts/unicode.pf2
+-
+-# Function: Display loading messages
+-function boot_message {
+-    echo "================================"
+-    echo "   Booting NoirOS Kernel..."
+-    echo "   Initializing subsystems..."
+-    echo "   File system, UI, and devices"
+-    echo "================================"
+-}
+-
+-# ------------------------------
+-# Main NoirOS Boot Menu
+-# ------------------------------
+-menuentry "NoirOS - Main System" --class noiros --class os {
+-    boot_message
+-    multiboot /boot/kernel.elf
+-    echo "NoirOS started successfully!"
+-    read
+-}
+-
+-# Debug/Recovery Submenu
+-submenu "NoirOS - Recovery, Debug" {
+-    menuentry "Debug Mode (Verbose)" --class debug {
+-        echo "Loading NoirOS in debug mode..."
+-        echo "Verbose output enabled"
+-        multiboot /boot/kernel.elf debug
+-    }
+-
+-    menuentry "Safe Mode" --class safe {
+-        echo "Loading NoirOS in safe mode..."
+-        echo "Minimal drivers and UI loaded"
+-        multiboot /boot/kernel.elf safe
+-    }
+-}
+-
+-# Utilities Submenu
+-submenu "System Utilities" {
+-    # Memory test
+-    menuentry "Memory Test (memtest86plus)" --class memtest {
+-        echo "Launching memory test utility..."
+-        linux16 /boot/memtestiso
+-    }
+-
+-    # System info
+-    menuentry "System Information" --class info {
+-        echo "=== NoirOS System Info ==="
+-        echo "Kernel: NoirOS Custom Kernel"
+-        echo "Features: File Browser, Text Editor, Snake Game"
+-        echo "Architecture: x86 (32-bit)"
+-        echo "Boot Method: Multiboot"
+-        echo "Press any key to return..."
+-        read
+-    }
+-}
+-
+-# Separator for menu clarity
+-menuentry "──────────────────────────────" { true }
+-
+-# Power options
+-menuentry "Reboot System" --class reboot {
+-    echo "Rebooting system..."
+-    reboot
+-}
+-
+-menuentry "Shutdown System" --class halt {
+-    echo "Shutting down system..."
+-    halt
+-}
+-
+-# Keyboard hint footer
+-insmod gfxterm
+-echo "Use arrows to navigate, Enter to select, Esc to go back"
++# GRUB Configuration for NoirOS - Enhanced Version
++
++# Timeout and default
++set timeout=8
++set default=0
++
++# Color scheme - Dark theme with cyan/purple accents
++set color_normal=white/black
++set color_highlight=black/cyan
++
++# Menu colors
++set menu_color_normal=white/black
++set menu_color_highlight=black/cyan
++
++# Background & terminal
++terminal_output console
++set gfxmode=auto
++set gfxpayload=keep
++# Optional background image (uncomment if available)
++# background_image /boot/grub/noirbg.png
++# Optional custom font
++# loadfont /boot/grub/fonts/unicode.pf2
++
++# Function: Display loading messages
++function boot_message {
++    echo "================================"
++    echo "   Booting NoirOS Kernel..."
++    echo "   Initializing subsystems..."
++    echo "   File system, UI, and devices"
++    echo "================================"
++}
++
++# ------------------------------
++# Main NoirOS Boot Menu
++# ------------------------------
++menuentry "NoirOS - Main System" --class noiros --class os {
++    boot_message
++    multiboot /boot/kernel.elf
++    echo "NoirOS started successfully!"
++    read
++}
++
++# Debug/Recovery Submenu
++submenu "NoirOS - Recovery, Debug" {
++    menuentry "Debug Mode (Verbose)" --class debug {
++        echo "Loading NoirOS in debug mode..."
++        echo "Verbose output enabled"
++        multiboot /boot/kernel.elf debug
++    }
++
++    menuentry "Safe Mode" --class safe {
++        echo "Loading NoirOS in safe mode..."
++        echo "Minimal drivers and UI loaded"
++        multiboot /boot/kernel.elf safe
++    }
++}
++
++# Utilities Submenu
++submenu "System Utilities" {
++    # Memory test
++    menuentry "Memory Test (memtest86plus)" --class memtest {
++        echo "Launching memory test utility..."
++        linux16 /boot/memtestiso
++    }
++
++    # System info
++    menuentry "System Information" --class info {
++        echo "=== NoirOS System Info ==="
++        echo "Kernel: NoirOS Custom Kernel"
++        echo "Features: File Browser, Text Editor, Snake Game"
++        echo "Architecture: x86 (32-bit)"
++        echo "Boot Method: Multiboot"
++        echo "Press any key to return..."
++        read
++    }
++}
++
++# Separator for menu clarity
++menuentry "──────────────────────────────" { true }
++
++# Power options
++menuentry "Reboot System" --class reboot {
++    echo "Rebooting system..."
++    reboot
++}
++
++menuentry "Shutdown System" --class halt {
++    echo "Shutting down system..."
++    halt
++}
++
++# Keyboard hint footer
++insmod gfxterm
++echo "Use arrows to navigate, Enter to select, Esc to go back"
+diff --git a/build/apps.o b/build/apps.o
+index fb28b3d..fdbaaeb 100644
+Binary files a/build/apps.o and b/build/apps.o differ
+diff --git a/build/editor.o b/build/editor.o
+index c55bde2..2d5bc38 100644
+Binary files a/build/editor.o and b/build/editor.o differ
+diff --git a/build/fs.o b/build/fs.o
+index cf180af..5fd1c20 100644
+Binary files a/build/fs.o and b/build/fs.o differ
+diff --git a/build/game_snake.o b/build/game_snake.o
+index ed81b60..80726be 100644
+Binary files a/build/game_snake.o and b/build/game_snake.o differ
+diff --git a/build/input.o b/build/input.o
+index 5f2c3d4..dca5a75 100644
+Binary files a/build/input.o and b/build/input.o differ
+diff --git a/build/kernel.o b/build/kernel.o
+index ebf672c..75c28b9 100644
+Binary files a/build/kernel.o and b/build/kernel.o differ
+diff --git a/build/mouse.o b/build/mouse.o
+index 8b68932..e4e8e04 100644
+Binary files a/build/mouse.o and b/build/mouse.o differ
+diff --git a/build/noirc.o b/build/noirc.o
+index 2895296..e947cc3 100644
+Binary files a/build/noirc.o and b/build/noirc.o differ
+diff --git a/build/shell.o b/build/shell.o
+index b6bf7cc..dc3ecef 100644
+Binary files a/build/shell.o and b/build/shell.o differ
+diff --git a/build/ui.o b/build/ui.o
+index 003c4eb..74e04a4 100644
+Binary files a/build/ui.o and b/build/ui.o differ
+diff --git a/build/util.o b/build/util.o
+index 9e54bc1..398ad35 100644
+Binary files a/build/util.o and b/build/util.o differ
+diff --git a/build/vga.o b/build/vga.o
+index 59a76bc..819a4b0 100644
+Binary files a/build/vga.o and b/build/vga.o differ
+diff --git a/build/viewer.o b/build/viewer.o
+index 1241d0c..6d32d8e 100644
+Binary files a/build/viewer.o and b/build/viewer.o differ
+diff --git a/docs/_layouts/default.html b/docs/_layouts/default.html
+index ceec79e..8e3f1d8 100644
+--- a/docs/_layouts/default.html
++++ b/docs/_layouts/default.html
+@@ -1,28 +1,28 @@
+-<!doctype html>
+-<html lang="en">
+-<head>
+-  <meta charset="utf-8">
+-  <meta name="viewport" content="width=device-width, initial-scale=1">
+-  <title>{{ page.title | default: site.title }}</title>
+-  <link rel="stylesheet" href="{{ '/assets/css/dark.css' | relative_url }}">
+-  <meta name="theme-color" content="#0b0f14">
+-  <meta name="description" content="NoirOS project documentation">
+-</head>
+-<body>
+-  <header class="site-header">
+-    <div class="wrap">
+-      <h1 class="site-title"><a href="/docs/">NoirOS</a></h1>
+-    </div>
+-  </header>
+-
+-  <main class="wrap">
+-    <article class="content">
+-      {{ content }}
+-    </article>
+-  </main>
+-
+-  <footer class="site-footer">
+-    <div class="wrap">&copy; NoirOS</div>
+-  </footer>
+-</body>
+-</html>
++<!doctype html>
++<html lang="en">
++<head>
++  <meta charset="utf-8">
++  <meta name="viewport" content="width=device-width, initial-scale=1">
++  <title>{{ page.title | default: site.title }}</title>
++  <link rel="stylesheet" href="{{ '/assets/css/dark.css' | relative_url }}">
++  <meta name="theme-color" content="#0b0f14">
++  <meta name="description" content="NoirOS project documentation">
++</head>
++<body>
++  <header class="site-header">
++    <div class="wrap">
++      <h1 class="site-title"><a href="/docs/">NoirOS</a></h1>
++    </div>
++  </header>
++
++  <main class="wrap">
++    <article class="content">
++      {{ content }}
++    </article>
++  </main>
++
++  <footer class="site-footer">
++    <div class="wrap">&copy; NoirOS</div>
++  </footer>
++</body>
++</html>
+diff --git a/docs/api.md b/docs/api.md
+index 274dbfa..566327b 100644
+--- a/docs/api.md
++++ b/docs/api.md
+@@ -1,104 +1,104 @@
+----
+-layout: default
+-title: API Reference
+----
+-
+-# NoirOS API Reference
+-
+-This page collects the Doxygen-style function documentation extracted from the source tree. Each section links to the implementation file for quick navigation.
+-
+-- Source: [src/input.c](src/input.c)
+-- Source: [src/editor.c](src/editor.c)
+-- Source: [src/fs.c](src/fs.c)
+-- Source: [src/game_snake.c](src/game_snake.c)
+-- Source: [src/kernel.c](src/kernel.c)
+-- Source: [src/mouse.c](src/mouse.c)
+-- Source: [src/util.c](src/util.c)
+-- Source: [src/vga.c](src/vga.c)
+-
+----
+-
+-## Input (`src/input.c`)
+-
+-- `inb(port)` — Read a byte from an I/O port. Returns the data byte read from the port.
+-- `kb_read_scancode()` — Read one scancode from the keyboard controller with timeout; returns 0 on timeout.
+-- `read_key()` — Translate raw scancodes into logical key values, handling modifiers and extended scancodes.
+-- `is_shift_pressed()`, `is_ctrl_pressed()`, `is_alt_pressed()`, `is_caps_lock_on()` — Query modifier/lock states.
+-- `input_readline(buf, max)` — Read a line of text into `buf` (NUL-terminated); handles basic editing and returns length.
+-
+-## Editor (`src/editor.c`)
+-
+-- `get_line_start(line)` — Return buffer offset of the start of logical line `line`.
+-- `get_line_length_at_off(off)` — Return number of characters on the line starting at buffer offset `off`.
+-- `cursor_to_offset()` — Convert cursor (x,y) to buffer offset.
+-- `insert_char_at(off, ch)` — Insert character at buffer offset `off`.
+-- `delete_char_before(off)` — Delete the character before offset `off`.
+-- `editor_draw()` — Redraw the editor UI (title, text window, cursor, status).
+-- `editor_open(fname, mode)` — Open `fname` into the editor buffer and switch to editor mode.
+-- `editor_handle_key(key, mode)` — Handle a single keypress in editor mode (navigation, editing, save/exit).
+-- `editor_set_cursor_pos(x, y)` — (optional, `EDITOR_MOUSE_SUPPORT`) Set editor cursor from mouse click coordinates.
+-
+-## Filesystem (`src/fs.c`)
+-
+-- `name_invalid(n)` — Validate a filename component; returns non-zero if invalid.
+-- `dir_find_child(d, name)` — Find a child directory by name.
+-- `dir_is_empty(d)` — Check whether a directory has no files/subdirs.
+-- `pool_index_of(d)` — Return index in directory pool for pointer `d`, or -1.
+-- `init_filesystem()` — Initialize the in-memory filesystem and preload sample files.
+-- `fs_root()` — Return pointer to the filesystem root directory.
+-- `fs_cwd()` — Return pointer to current working directory.
+-- `fs_pwd(out, out_len)` — Write current working directory path into `out`.
+-- `fs_mkdir(name)` — Create a new directory in CWD; returns `FS_OK` or error.
+-- `fs_chdir(name)` — Change current working directory to `name`/`..`/`/`.
+-- `fs_rmdir(name)` — Remove an empty subdirectory and free its pool slot.
+-- `fs_dir_count()`, `fs_dir_get(idx)`, `fs_find_dir(name)` — Directory listing helpers.
+-- `fs_count()`, `fs_get(idx)`, `fs_find(name)` — File listing helpers.
+-- `fs_create(name, type)`, `fs_delete(name)` — Create and delete files in CWD.
+-- `fs_write(name, data)`, `fs_append(name, data)` — Write/append file contents.
+-- `fs_list_counts(out_dirs, out_files)` — Return dir/file counts for CWD.
+-
+-## Game: Snake (`src/game_snake.c`)
+-
+-- `snake_init()` — Initialize snake game state to starting values and place food.
+-- `place_food()` — (static) Place food at an unoccupied position; deterministic sequence, fallback scan.
+-- `snake_update()` — Advance game state by one tick: move snake, check collisions, handle food.
+-- `snake_draw()` — Render the current snake game state to the screen.
+-- `snake_handle_key(k)` — Handle key events in game; returns 1 if ESC pressed to exit.
+-
+-## Kernel (`src/kernel.c`)
+-
+-- `handle_command_input(explorer_sel, mode)` — Read a command line from the status prompt and execute simple commands; may switch modes.
+-- `kernel_main()` — Kernel main loop: initialize systems and process events (browser/editor/game modes).
+-
+-## Mouse (`src/mouse.c`)
+-
+-- `inb(port)`, `outb(port, val)` — Port I/O helpers used by the mouse subsystem.
+-- `mouse_wait_input()` — Wait for PS/2 controller input buffer to be clear (timeout-protected).
+-- `mouse_wait_output()` — Wait for PS/2 controller output buffer to have data (timeout-protected).
+-- `mouse_write(data)` — Send a byte to the PS/2 mouse device.
+-- `mouse_read()` — Read a byte from PS/2 data port (returns 0 on timeout).
+-- `init_mouse()` — Initialize the PS/2 mouse device and enable data reporting; centers cursor on screen.
+-- `mouse_handler()` — Interrupt handler: collect 3-byte packets and update global `mouse` state; clamps to screen bounds.
+-- `get_mouse_state()` — Return pointer to global `mouse_state_t`.
+-
+-## Utilities (`src/util.c`)
+-
+-- `kstrcmp(a,b)` — Lexicographic string comparison.
+-- `kstrncmp(a,b,n)` — Compare up to `n` characters.
+-- `kstrcpy(dst,src)` — Unbounded copy (use only when `dst` is large enough).
+-- `kstrncpy(dest,src,n)` — Copy at most `n-1` bytes and NUL-terminate; no-op if `n<=0`.
+-- `kstrlen(s)` — Return length of NUL-terminated string.
+-
+-## VGA / Drawing (`src/vga.c`)
+-
+-- `vga_putcell(x,y,ch,attr)` — Write a character cell to VGA text buffer; bounds-checked.
+-- `vga_clear()` — Clear the VGA text screen and reset cursor.
+-- `term_putc(c)` — Terminal character output with newline/tab/scroll handling.
+-- `term_write(s)` — Write a NUL-terminated string to the terminal.
+-- `draw_box(x,y,w,h,title,...)` — Draw a framed box with optional title and background attr.
+-- `draw_text_in_win(x,y,w,h,wx,wy,text,attr)` — Draw text within a window region with wrapping.
+-- `vga_getcell_char(x,y)`, `vga_getcell_attr(x,y)` — Read character/attribute from a screen cell.
+-
+----
+-
+-This page is a compact API summary. The full per-module pages link to their source and include each function's documentation.
++---
++layout: default
++title: API Reference
++---
++
++# NoirOS API Reference
++
++This page collects the Doxygen-style function documentation extracted from the source tree. Each section links to the implementation file for quick navigation.
++
++- Source: [src/input.c](src/input.c)
++- Source: [src/editor.c](src/editor.c)
++- Source: [src/fs.c](src/fs.c)
++- Source: [src/game_snake.c](src/game_snake.c)
++- Source: [src/kernel.c](src/kernel.c)
++- Source: [src/mouse.c](src/mouse.c)
++- Source: [src/util.c](src/util.c)
++- Source: [src/vga.c](src/vga.c)
++
++---
++
++## Input (`src/input.c`)
++
++- `inb(port)` — Read a byte from an I/O port. Returns the data byte read from the port.
++- `kb_read_scancode()` — Read one scancode from the keyboard controller with timeout; returns 0 on timeout.
++- `read_key()` — Translate raw scancodes into logical key values, handling modifiers and extended scancodes.
++- `is_shift_pressed()`, `is_ctrl_pressed()`, `is_alt_pressed()`, `is_caps_lock_on()` — Query modifier/lock states.
++- `input_readline(buf, max)` — Read a line of text into `buf` (NUL-terminated); handles basic editing and returns length.
++
++## Editor (`src/editor.c`)
++
++- `get_line_start(line)` — Return buffer offset of the start of logical line `line`.
++- `get_line_length_at_off(off)` — Return number of characters on the line starting at buffer offset `off`.
++- `cursor_to_offset()` — Convert cursor (x,y) to buffer offset.
++- `insert_char_at(off, ch)` — Insert character at buffer offset `off`.
++- `delete_char_before(off)` — Delete the character before offset `off`.
++- `editor_draw()` — Redraw the editor UI (title, text window, cursor, status).
++- `editor_open(fname, mode)` — Open `fname` into the editor buffer and switch to editor mode.
++- `editor_handle_key(key, mode)` — Handle a single keypress in editor mode (navigation, editing, save/exit).
++- `editor_set_cursor_pos(x, y)` — (optional, `EDITOR_MOUSE_SUPPORT`) Set editor cursor from mouse click coordinates.
++
++## Filesystem (`src/fs.c`)
++
++- `name_invalid(n)` — Validate a filename component; returns non-zero if invalid.
++- `dir_find_child(d, name)` — Find a child directory by name.
++- `dir_is_empty(d)` — Check whether a directory has no files/subdirs.
++- `pool_index_of(d)` — Return index in directory pool for pointer `d`, or -1.
++- `init_filesystem()` — Initialize the in-memory filesystem and preload sample files.
++- `fs_root()` — Return pointer to the filesystem root directory.
++- `fs_cwd()` — Return pointer to current working directory.
++- `fs_pwd(out, out_len)` — Write current working directory path into `out`.
++- `fs_mkdir(name)` — Create a new directory in CWD; returns `FS_OK` or error.
++- `fs_chdir(name)` — Change current working directory to `name`/`..`/`/`.
++- `fs_rmdir(name)` — Remove an empty subdirectory and free its pool slot.
++- `fs_dir_count()`, `fs_dir_get(idx)`, `fs_find_dir(name)` — Directory listing helpers.
++- `fs_count()`, `fs_get(idx)`, `fs_find(name)` — File listing helpers.
++- `fs_create(name, type)`, `fs_delete(name)` — Create and delete files in CWD.
++- `fs_write(name, data)`, `fs_append(name, data)` — Write/append file contents.
++- `fs_list_counts(out_dirs, out_files)` — Return dir/file counts for CWD.
++
++## Game: Snake (`src/game_snake.c`)
++
++- `snake_init()` — Initialize snake game state to starting values and place food.
++- `place_food()` — (static) Place food at an unoccupied position; deterministic sequence, fallback scan.
++- `snake_update()` — Advance game state by one tick: move snake, check collisions, handle food.
++- `snake_draw()` — Render the current snake game state to the screen.
++- `snake_handle_key(k)` — Handle key events in game; returns 1 if ESC pressed to exit.
++
++## Kernel (`src/kernel.c`)
++
++- `handle_command_input(explorer_sel, mode)` — Read a command line from the status prompt and execute simple commands; may switch modes.
++- `kernel_main()` — Kernel main loop: initialize systems and process events (browser/editor/game modes).
++
++## Mouse (`src/mouse.c`)
++
++- `inb(port)`, `outb(port, val)` — Port I/O helpers used by the mouse subsystem.
++- `mouse_wait_input()` — Wait for PS/2 controller input buffer to be clear (timeout-protected).
++- `mouse_wait_output()` — Wait for PS/2 controller output buffer to have data (timeout-protected).
++- `mouse_write(data)` — Send a byte to the PS/2 mouse device.
++- `mouse_read()` — Read a byte from PS/2 data port (returns 0 on timeout).
++- `init_mouse()` — Initialize the PS/2 mouse device and enable data reporting; centers cursor on screen.
++- `mouse_handler()` — Interrupt handler: collect 3-byte packets and update global `mouse` state; clamps to screen bounds.
++- `get_mouse_state()` — Return pointer to global `mouse_state_t`.
++
++## Utilities (`src/util.c`)
++
++- `kstrcmp(a,b)` — Lexicographic string comparison.
++- `kstrncmp(a,b,n)` — Compare up to `n` characters.
++- `kstrcpy(dst,src)` — Unbounded copy (use only when `dst` is large enough).
++- `kstrncpy(dest,src,n)` — Copy at most `n-1` bytes and NUL-terminate; no-op if `n<=0`.
++- `kstrlen(s)` — Return length of NUL-terminated string.
++
++## VGA / Drawing (`src/vga.c`)
++
++- `vga_putcell(x,y,ch,attr)` — Write a character cell to VGA text buffer; bounds-checked.
++- `vga_clear()` — Clear the VGA text screen and reset cursor.
++- `term_putc(c)` — Terminal character output with newline/tab/scroll handling.
++- `term_write(s)` — Write a NUL-terminated string to the terminal.
++- `draw_box(x,y,w,h,title,...)` — Draw a framed box with optional title and background attr.
++- `draw_text_in_win(x,y,w,h,wx,wy,text,attr)` — Draw text within a window region with wrapping.
++- `vga_getcell_char(x,y)`, `vga_getcell_attr(x,y)` — Read character/attribute from a screen cell.
++
++---
++
++This page is a compact API summary. The full per-module pages link to their source and include each function's documentation.
+diff --git a/docs/assets/css/dark.css b/docs/assets/css/dark.css
+index f639183..7ebee04 100644
+--- a/docs/assets/css/dark.css
++++ b/docs/assets/css/dark.css
+@@ -1,37 +1,37 @@
+-/* Dark theme for NoirOS docs */
+-:root{
+-  --bg:#0b0f14;
+-  --surface:#0f1720;
+-  --muted:#8b949e;
+-  --text:#c9d1d9;
+-  --accent:#58a6ff;
+-  --code-bg:#011627;
+-}
+-html,body{
+-  height:100%;
+-  margin:0;
+-  background:var(--bg);
+-  color:var(--text);
+-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+-  line-height:1.5;
+-}
+-.wrap{ max-width:900px; margin:24px auto; padding:0 20px; }
+-.site-header{ border-bottom:1px solid rgba(255,255,255,0.04); padding:18px 0; }
+-.site-title{ margin:0; font-size:20px; }
+-.site-title a{ color:var(--text); text-decoration:none; }
+-h1,h2,h3{ color:var(--text); }
+-a{ color:var(--accent); }
+-pre, code{ background:var(--code-bg); color:var(--text); border-radius:6px; }
+-pre{ padding:12px; overflow:auto; }
+-code{ padding:2px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
+-blockquote{ border-left:4px solid rgba(255,255,255,0.06); padding:8px 16px; color:var(--muted); background:rgba(255,255,255,0.01); }
+-table{ width:100%; border-collapse:collapse; margin:12px 0; }
+-th,td{ border:1px solid rgba(255,255,255,0.04); padding:8px; }
+-th{ background:rgba(255,255,255,0.02); }
+-.site-footer{ border-top:1px solid rgba(255,255,255,0.04); padding:12px 0; margin-top:36px; color:var(--muted); }
+-
+-/* Make images/figures look nice on dark bg */
+-img{ max-width:100%; height:auto; border-radius:6px; }
+-
+-/* Accessibility: increase contrast for inline code in headings */
+-h1 code, h2 code{ background:#06202a; padding:4px 8px; }
++/* Dark theme for NoirOS docs */
++:root{
++  --bg:#0b0f14;
++  --surface:#0f1720;
++  --muted:#8b949e;
++  --text:#c9d1d9;
++  --accent:#58a6ff;
++  --code-bg:#011627;
++}
++html,body{
++  height:100%;
++  margin:0;
++  background:var(--bg);
++  color:var(--text);
++  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
++  line-height:1.5;
++}
++.wrap{ max-width:900px; margin:24px auto; padding:0 20px; }
++.site-header{ border-bottom:1px solid rgba(255,255,255,0.04); padding:18px 0; }
++.site-title{ margin:0; font-size:20px; }
++.site-title a{ color:var(--text); text-decoration:none; }
++h1,h2,h3{ color:var(--text); }
++a{ color:var(--accent); }
++pre, code{ background:var(--code-bg); color:var(--text); border-radius:6px; }
++pre{ padding:12px; overflow:auto; }
++code{ padding:2px 6px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", "Courier New", monospace; }
++blockquote{ border-left:4px solid rgba(255,255,255,0.06); padding:8px 16px; color:var(--muted); background:rgba(255,255,255,0.01); }
++table{ width:100%; border-collapse:collapse; margin:12px 0; }
++th,td{ border:1px solid rgba(255,255,255,0.04); padding:8px; }
++th{ background:rgba(255,255,255,0.02); }
++.site-footer{ border-top:1px solid rgba(255,255,255,0.04); padding:12px 0; margin-top:36px; color:var(--muted); }
++
++/* Make images/figures look nice on dark bg */
++img{ max-width:100%; height:auto; border-radius:6px; }
++
++/* Accessibility: increase contrast for inline code in headings */
++h1 code, h2 code{ background:#06202a; padding:4px 8px; }
+diff --git a/docs/editor.md b/docs/editor.md
+index 0aa22cf..59d2d13 100644
+--- a/docs/editor.md
++++ b/docs/editor.md
+@@ -1,20 +1,20 @@
+----
+-layout: default
+-title: Editor Module
+----
+-
+-# Editor (`src/editor.c`)
+-
+-Key functions and behavior:
+-
+-- `get_line_start(line)` — Return buffer offset for the start of logical line `line`.
+-- `get_line_length_at_off(off)` — Return number of characters on the line starting at buffer offset `off` (excludes newline).
+-- `cursor_to_offset()` — Convert `editor_cursor_x`/`editor_cursor_y` to a buffer offset.
+-- `insert_char_at(off, ch)` — Insert `ch` at buffer offset `off`, shifting contents and updating state.
+-- `delete_char_before(off)` — Delete character before offset `off` (backspace semantics).
+-- `editor_draw()` — Redraw title bar, visible text window, cursor and status bar.
+-- `editor_open(fname, mode)` — Load `fname` into the editor buffer and switch to editor mode.
+-- `editor_handle_key(key, mode)` — Handle navigation, editing, and save/exit shortcuts (Ctrl+S/Ctrl+X).
+-- `editor_set_cursor_pos(x, y)` — (optional, `EDITOR_MOUSE_SUPPORT`) Map a mouse click to editor cursor coordinates and clamp safely.
+-
+-Source: [src/editor.c](../src/editor.c)
++---
++layout: default
++title: Editor Module
++---
++
++# Editor (`src/editor.c`)
++
++Key functions and behavior:
++
++- `get_line_start(line)` — Return buffer offset for the start of logical line `line`.
++- `get_line_length_at_off(off)` — Return number of characters on the line starting at buffer offset `off` (excludes newline).
++- `cursor_to_offset()` — Convert `editor_cursor_x`/`editor_cursor_y` to a buffer offset.
++- `insert_char_at(off, ch)` — Insert `ch` at buffer offset `off`, shifting contents and updating state.
++- `delete_char_before(off)` — Delete character before offset `off` (backspace semantics).
++- `editor_draw()` — Redraw title bar, visible text window, cursor and status bar.
++- `editor_open(fname, mode)` — Load `fname` into the editor buffer and switch to editor mode.
++- `editor_handle_key(key, mode)` — Handle navigation, editing, and save/exit shortcuts (Ctrl+S/Ctrl+X).
++- `editor_set_cursor_pos(x, y)` — (optional, `EDITOR_MOUSE_SUPPORT`) Map a mouse click to editor cursor coordinates and clamp safely.
++
++Source: [src/editor.c](../src/editor.c)
+diff --git a/docs/fs.md b/docs/fs.md
+index f801e75..a71dde6 100644
+--- a/docs/fs.md
++++ b/docs/fs.md
+@@ -1,19 +1,19 @@
+----
+-layout: default
+-title: Filesystem Module
+----
+-
+-# Filesystem (`src/fs.c`)
+-
+-Overview and functions:
+-
+-- `init_filesystem()` — Initialize in-memory filesystem and preload example files and a `/docs` directory.
+-- `fs_root()`, `fs_cwd()` — Get pointers to root and current working directory.
+-- `fs_pwd(out, out_len)` — Write current working directory path into `out`.
+-- `fs_mkdir(name)` — Create a new directory in CWD; returns `FS_OK` or error codes.
+-- `fs_chdir(name)` — Change current working directory.
+-- `fs_rmdir(name)` — Remove an empty subdirectory and free its pool slot.
+-- File operations: `fs_count()`, `fs_get(idx)`, `fs_find(name)`, `fs_create(name,type)`, `fs_delete(name)`, `fs_write(name,data)`, `fs_append(name,data)`.
+-- Utilities: `fs_dir_count()`, `fs_dir_get(idx)`, `fs_find_dir(name)`, `fs_list_counts(out_dirs,out_files)`.
+-
+-Source: [src/fs.c](../src/fs.c)
++---
++layout: default
++title: Filesystem Module
++---
++
++# Filesystem (`src/fs.c`)
++
++Overview and functions:
++
++- `init_filesystem()` — Initialize in-memory filesystem and preload example files and a `/docs` directory.
++- `fs_root()`, `fs_cwd()` — Get pointers to root and current working directory.
++- `fs_pwd(out, out_len)` — Write current working directory path into `out`.
++- `fs_mkdir(name)` — Create a new directory in CWD; returns `FS_OK` or error codes.
++- `fs_chdir(name)` — Change current working directory.
++- `fs_rmdir(name)` — Remove an empty subdirectory and free its pool slot.
++- File operations: `fs_count()`, `fs_get(idx)`, `fs_find(name)`, `fs_create(name,type)`, `fs_delete(name)`, `fs_write(name,data)`, `fs_append(name,data)`.
++- Utilities: `fs_dir_count()`, `fs_dir_get(idx)`, `fs_find_dir(name)`, `fs_list_counts(out_dirs,out_files)`.
++
++Source: [src/fs.c](../src/fs.c)
+diff --git a/docs/game_snake.md b/docs/game_snake.md
+index 4015223..d6b382c 100644
+--- a/docs/game_snake.md
++++ b/docs/game_snake.md
+@@ -1,15 +1,15 @@
+----
+-layout: default
+-title: Snake Game Module
+----
+-
+-# Game: Snake (`src/game_snake.c`)
+-
+-Functions:
+-
+-- `snake_init()` — Initialize game state, starting length/direction, score, and place food.
+-- `snake_update()` — Advance the game by one tick: move the snake, detect wall/self collisions, handle food collection and growth.
+-- `snake_draw()` — Render the playfield, snake, food, and score to the screen.
+-- `snake_handle_key(k)` — Handle key input during the game; prevents direct reversal and returns 1 on ESC to exit.
+-
+-Source: [src/game_snake.c](../src/game_snake.c)
++---
++layout: default
++title: Snake Game Module
++---
++
++# Game: Snake (`src/game_snake.c`)
++
++Functions:
++
++- `snake_init()` — Initialize game state, starting length/direction, score, and place food.
++- `snake_update()` — Advance the game by one tick: move the snake, detect wall/self collisions, handle food collection and growth.
++- `snake_draw()` — Render the playfield, snake, food, and score to the screen.
++- `snake_handle_key(k)` — Handle key input during the game; prevents direct reversal and returns 1 on ESC to exit.
++
++Source: [src/game_snake.c](../src/game_snake.c)
+diff --git a/docs/index.md b/docs/index.md
+index 4bc0e14..cf61ce8 100644
+--- a/docs/index.md
++++ b/docs/index.md
+@@ -1,69 +1,69 @@
+----
+-layout: default
+-title: NoirOS
+----
+-
+-# NoirOS
+-
+-> "An idiot admires complexity, a genius admires simplicity"
+->
+-> "But I'm an idiot who admires simplicity"
+-
+-NoirOS is a simple, educational operating system project. It is designed to help users understand the basics of OS development, including bootloading, kernel design, and basic user applications.
+-
+-## Features
+-- Custom kernel written in C and Assembly
+-- Simple shell interface
+-- Basic file system support
+-- Text editor
+-- Snake game
+-- Mouse and keyboard input handling
+-- VGA text mode UI
+-
+-## Getting Started
+-
+-### Building NoirOS
+-
+-To build NoirOS, you will need a cross-compiler for i386 and the following tools:
+-- `make`
+-- `nasm`
+-- `qemu` (for emulation)
+-
+-Clone the repository and run:
+-
+-```sh
+-make
+-```
+-
+-### Running in QEMU
+-
+-After building, you can run NoirOS in QEMU:
+-
+-```sh
+-make run
+-```
+-
+-## Project Structure
+-- `src/` — Source code for the kernel and applications
+-- `include/` — Header files
+-- `boot/` — Bootloader files
+-- `build/` — Build output
+-- `iso/` — ISO image structure
+-
+-## Documentation
+-- [API Reference](api.md) — Generated summary of module and function documentation.
+-### Module docs
+-- [Input](input.md)
+-- [Editor](editor.md)
+-- [Filesystem](fs.md)
+-- [Snake Game](game_snake.md)
+-- [Kernel](kernel.md)
+-- [Mouse](mouse.md)
+-- [Utilities](util.md)
+-- [VGA / Drawing](vga.md)
+-
+-## License
+-NoirOS is released under the MIT License. See the `License` file for details.
+-
+-## Contributing
+-Contributions are welcome! Please open issues or pull requests to help improve NoirOS.
++---
++layout: default
++title: NoirOS
++---
++
++# NoirOS
++
++> "An idiot admires complexity, a genius admires simplicity"
++>
++> "But I'm an idiot who admires simplicity"
++
++NoirOS is a simple, educational operating system project. It is designed to help users understand the basics of OS development, including bootloading, kernel design, and basic user applications.
++
++## Features
++- Custom kernel written in C and Assembly
++- Simple shell interface
++- Basic file system support
++- Text editor
++- Snake game
++- Mouse and keyboard input handling
++- VGA text mode UI
++
++## Getting Started
++
++### Building NoirOS
++
++To build NoirOS, you will need a cross-compiler for i386 and the following tools:
++- `make`
++- `nasm`
++- `qemu` (for emulation)
++
++Clone the repository and run:
++
++```sh
++make
++```
++
++### Running in QEMU
++
++After building, you can run NoirOS in QEMU:
++
++```sh
++make run
++```
++
++## Project Structure
++- `src/` — Source code for the kernel and applications
++- `include/` — Header files
++- `boot/` — Bootloader files
++- `build/` — Build output
++- `iso/` — ISO image structure
++
++## Documentation
++- [API Reference](api.md) — Generated summary of module and function documentation.
++### Module docs
++- [Input](input.md)
++- [Editor](editor.md)
++- [Filesystem](fs.md)
++- [Snake Game](game_snake.md)
++- [Kernel](kernel.md)
++- [Mouse](mouse.md)
++- [Utilities](util.md)
++- [VGA / Drawing](vga.md)
++
++## License
++NoirOS is released under the MIT License. See the `License` file for details.
++
++## Contributing
++Contributions are welcome! Please open issues or pull requests to help improve NoirOS.
+diff --git a/docs/input.md b/docs/input.md
+index faa8804..ace06da 100644
+--- a/docs/input.md
++++ b/docs/input.md
+@@ -1,20 +1,20 @@
+----
+-layout: default
+-title: Input Module
+----
+-
+-# Input (`src/input.c`)
+-
+-Functions and documentation extracted from source:
+-
+-- `inb(port)` — Read a byte from an I/O port. Returns the data byte read from the port.
+-
+-- `kb_read_scancode()` — Read one scancode from the keyboard controller with a timeout; returns 0 on timeout to avoid blocking when hardware is absent.
+-
+-- `read_key()` — Translate raw scancodes into logical key values. Handles E0-prefixed extended scancodes, key releases, and modifier state (shift/ctrl/alt/caps). Returns ASCII, control codes, or special constants (K_ARROW_*, K_F1..).
+-
+-- `is_shift_pressed()`, `is_ctrl_pressed()`, `is_alt_pressed()`, `is_caps_lock_on()` — Query modifier and lock states.
+-
+-- `input_readline(buf, max)` — Read a line of text into `buf` (NUL-terminated). Handles backspace and simple editing; blocks until Enter.
+-
+-Source: [src/input.c](../src/input.c)
++---
++layout: default
++title: Input Module
++---
++
++# Input (`src/input.c`)
++
++Functions and documentation extracted from source:
++
++- `inb(port)` — Read a byte from an I/O port. Returns the data byte read from the port.
++
++- `kb_read_scancode()` — Read one scancode from the keyboard controller with a timeout; returns 0 on timeout to avoid blocking when hardware is absent.
++
++- `read_key()` — Translate raw scancodes into logical key values. Handles E0-prefixed extended scancodes, key releases, and modifier state (shift/ctrl/alt/caps). Returns ASCII, control codes, or special constants (K_ARROW_*, K_F1..).
++
++- `is_shift_pressed()`, `is_ctrl_pressed()`, `is_alt_pressed()`, `is_caps_lock_on()` — Query modifier and lock states.
++
++- `input_readline(buf, max)` — Read a line of text into `buf` (NUL-terminated). Handles backspace and simple editing; blocks until Enter.
++
++Source: [src/input.c](../src/input.c)
+diff --git a/docs/kernel.md b/docs/kernel.md
+index ac47a3d..9b8d067 100644
+--- a/docs/kernel.md
++++ b/docs/kernel.md
+@@ -1,13 +1,13 @@
+----
+-layout: default
+-title: Kernel Module
+----
+-
+-# Kernel (`src/kernel.c`)
+-
+-Key functions:
+-
+-- `handle_command_input(explorer_sel, mode)` — Read a command line from the status prompt and execute simple commands. May change `mode` to enter the editor or game and returns the updated selection index.
+-- `kernel_main()` — Kernel entry and main loop: initialize subsystems, draw UI, and process input/events across browser, editor, and game modes.
+-
+-Source: [src/kernel.c](../src/kernel.c)
++---
++layout: default
++title: Kernel Module
++---
++
++# Kernel (`src/kernel.c`)
++
++Key functions:
++
++- `handle_command_input(explorer_sel, mode)` — Read a command line from the status prompt and execute simple commands. May change `mode` to enter the editor or game and returns the updated selection index.
++- `kernel_main()` — Kernel entry and main loop: initialize subsystems, draw UI, and process input/events across browser, editor, and game modes.
++
++Source: [src/kernel.c](../src/kernel.c)
+diff --git a/docs/mouse.md b/docs/mouse.md
+index 812e6f4..3fffa37 100644
+--- a/docs/mouse.md
++++ b/docs/mouse.md
+@@ -1,17 +1,17 @@
+----
+-layout: default
+-title: Mouse Module
+----
+-
+-# Mouse (`src/mouse.c`)
+-
+-Functions and behavior:
+-
+-- `inb(port)`, `outb(port, val)` — Low-level port I/O helpers used by the mouse code.
+-- `mouse_wait_input()` / `mouse_wait_output()` — Wait for PS/2 controller readiness (timeout-protected to avoid hangs).
+-- `mouse_write(data)`, `mouse_read()` — Send/read bytes to/from the PS/2 mouse (returns 0 on timeout).
+-- `init_mouse()` — Initialize the PS/2 mouse, enable data reporting, and centre the cursor on screen.
+-- `mouse_handler()` — Interrupt handler that assembles 3-byte packets, updates `mouse` state, and clamps position to screen bounds.
+-- `get_mouse_state()` — Return pointer to global `mouse_state_t`.
+-
+-Source: [src/mouse.c](../src/mouse.c)
++---
++layout: default
++title: Mouse Module
++---
++
++# Mouse (`src/mouse.c`)
++
++Functions and behavior:
++
++- `inb(port)`, `outb(port, val)` — Low-level port I/O helpers used by the mouse code.
++- `mouse_wait_input()` / `mouse_wait_output()` — Wait for PS/2 controller readiness (timeout-protected to avoid hangs).
++- `mouse_write(data)`, `mouse_read()` — Send/read bytes to/from the PS/2 mouse (returns 0 on timeout).
++- `init_mouse()` — Initialize the PS/2 mouse, enable data reporting, and centre the cursor on screen.
++- `mouse_handler()` — Interrupt handler that assembles 3-byte packets, updates `mouse` state, and clamps position to screen bounds.
++- `get_mouse_state()` — Return pointer to global `mouse_state_t`.
++
++Source: [src/mouse.c](../src/mouse.c)
+diff --git a/docs/util.md b/docs/util.md
+index 996a354..1116a38 100644
+--- a/docs/util.md
++++ b/docs/util.md
+@@ -1,16 +1,16 @@
+----
+-layout: default
+-title: Utilities Module
+----
+-
+-# Utilities (`src/util.c`)
+-
+-Functions:
+-
+-- `kstrcmp(a,b)` — Lexicographic comparison of NUL-terminated strings.
+-- `kstrncmp(a,b,n)` — Compare up to `n` characters of two strings.
+-- `kstrcpy(dst,src)` — Unbounded copy; use only when destination is known to be large enough.
+-- `kstrncpy(dest,src,n)` — Copy at most `n-1` bytes and NUL-terminate; no-op when `n<=0`.
+-- `kstrlen(s)` — Return length of a NUL-terminated string.
+-
+-Source: [src/util.c](../src/util.c)
++---
++layout: default
++title: Utilities Module
++---
++
++# Utilities (`src/util.c`)
++
++Functions:
++
++- `kstrcmp(a,b)` — Lexicographic comparison of NUL-terminated strings.
++- `kstrncmp(a,b,n)` — Compare up to `n` characters of two strings.
++- `kstrcpy(dst,src)` — Unbounded copy; use only when destination is known to be large enough.
++- `kstrncpy(dest,src,n)` — Copy at most `n-1` bytes and NUL-terminate; no-op when `n<=0`.
++- `kstrlen(s)` — Return length of a NUL-terminated string.
++
++Source: [src/util.c](../src/util.c)
+diff --git a/docs/vga.md b/docs/vga.md
+index 4fc428f..76d8cab 100644
+--- a/docs/vga.md
++++ b/docs/vga.md
+@@ -1,18 +1,18 @@
+----
+-layout: default
+-title: VGA / Drawing Module
+----
+-
+-# VGA / Drawing (`src/vga.c`)
+-
+-Functions:
+-
+-- `vga_putcell(x,y,ch,attr)` — Write a character cell to VGA text buffer with bounds checking.
+-- `vga_clear()` — Clear the screen and reset cursor.
+-- `term_putc(c)` — Terminal character output with newline/tab handling and automatic scrolling.
+-- `term_write(s)` — Write a NUL-terminated string to the terminal.
+-- `draw_box(x,y,w,h,title,...)` — Draw a framed box with optional title and background attribute.
+-- `draw_text_in_win(x,y,w,h,wx,wy,text,attr)` — Draw text inside a window region with wrapping and newline/tab handling.
+-- `vga_getcell_char(x,y)`, `vga_getcell_attr(x,y)` — Read character and attribute at a screen cell.
+-
+-Source: [src/vga.c](../src/vga.c)
++---
++layout: default
++title: VGA / Drawing Module
++---
++
++# VGA / Drawing (`src/vga.c`)
++
++Functions:
++
++- `vga_putcell(x,y,ch,attr)` — Write a character cell to VGA text buffer with bounds checking.
++- `vga_clear()` — Clear the screen and reset cursor.
++- `term_putc(c)` — Terminal character output with newline/tab handling and automatic scrolling.
++- `term_write(s)` — Write a NUL-terminated string to the terminal.
++- `draw_box(x,y,w,h,title,...)` — Draw a framed box with optional title and background attribute.
++- `draw_text_in_win(x,y,w,h,wx,wy,text,attr)` — Draw text inside a window region with wrapping and newline/tab handling.
++- `vga_getcell_char(x,y)`, `vga_getcell_attr(x,y)` — Read character and attribute at a screen cell.
++
++Source: [src/vga.c](../src/vga.c)
+diff --git a/include/apps.h b/include/apps.h
+index 82c14aa..ec26043 100644
+--- a/include/apps.h
++++ b/include/apps.h
+@@ -1,8 +1,8 @@
+-#ifndef APPS_H
+-#define APPS_H
+-#include "common.h"
+-
+-void app_editor_open(const char* filename);
+-void app_snake_launch(void);
+-
+-#endif
++#ifndef APPS_H
++#define APPS_H
++#include "common.h"
++
++void app_editor_open(const char* filename);
++void app_snake_launch(void);
++
++#endif
+diff --git a/include/common.h b/include/common.h
+index 11f2f21..f062273 100644
+--- a/include/common.h
++++ b/include/common.h
+@@ -1,61 +1,61 @@
+-#ifndef COMMON_H
+-#define COMMON_H
+-
+-typedef unsigned char  u8;
+-typedef unsigned short u16;
+-typedef unsigned int   u32;
+-typedef int            s32;
+-typedef unsigned long  uintptr;
+-
+-#define VGA_ADDR 0xB8000
+-#define WIDTH 80
+-#define HEIGHT 25
+-
+-/* Runtime screen dimensions (can be changed at runtime via vga_set_mode)
+- * Default values are the same as WIDTH/HEIGHT macros. */
+-extern int SCREEN_W;
+-extern int SCREEN_H;
+-
+-/* VGA 16-color palette indices */
+-#define COL_BLACK        0x0
+-#define COL_BLUE         0x1
+-#define COL_GREEN        0x2
+-#define COL_CYAN         0x3
+-#define COL_RED          0x4
+-#define COL_MAGENTA      0x5
+-#define COL_BROWN        0x6
+-#define COL_LIGHT_GREY   0x7
+-#define COL_DARK_GREY    0x8
+-#define COL_LIGHT_BLUE   0x9
+-#define COL_LIGHT_GREEN  0xA
+-#define COL_LIGHT_CYAN   0xB
+-#define COL_LIGHT_RED    0xC
+-#define COL_LIGHT_MAGENTA 0xD
+-#define COL_YELLOW       0xE
+-#define COL_WHITE        0xF
+-
+-/* Build a VGA attribute byte from foreground and background color indices */
+-#define VGA_ATTR(fg, bg) (u8)(((bg) << 4) | ((fg) & 0xF))
+-
+-/* Named theme attributes used throughout the OS */
+-#define ATTR_NORMAL       VGA_ATTR(COL_LIGHT_GREY,   COL_BLACK)
+-#define ATTR_TITLE        VGA_ATTR(COL_WHITE,         COL_BLUE)
+-#define ATTR_SELECTED     VGA_ATTR(COL_BLACK,         COL_LIGHT_CYAN)
+-#define ATTR_BORDER       VGA_ATTR(COL_LIGHT_CYAN,    COL_BLACK)
+-#define ATTR_STATUS       VGA_ATTR(COL_BLACK,         COL_LIGHT_GREY)
+-#define ATTR_ERROR        VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
+-#define ATTR_SUCCESS      VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
+-#define ATTR_PROMPT       VGA_ATTR(COL_YELLOW,        COL_BLACK)
+-#define ATTR_DIR          VGA_ATTR(COL_LIGHT_BLUE,    COL_BLACK)
+-#define ATTR_FILE_TEXT    VGA_ATTR(COL_LIGHT_GREY,    COL_BLACK)
+-#define ATTR_FILE_MD      VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
+-#define ATTR_FILE_HTML    VGA_ATTR(COL_LIGHT_CYAN,    COL_BLACK)
+-#define ATTR_FILE_NOIRC   VGA_ATTR(COL_YELLOW,        COL_BLACK)
+-#define ATTR_FILE_EXE     VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
+-#define ATTR_VIEWER_BG    VGA_ATTR(COL_LIGHT_GREY,    COL_BLACK)
+-#define ATTR_VIEWER_TITLE VGA_ATTR(COL_WHITE,         COL_BLUE)
+-#define ATTR_NOIRC_OUTPUT VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
+-#define ATTR_NOIRC_ERROR  VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
+-#define ATTR_NOIRC_PROMPT VGA_ATTR(COL_YELLOW,        COL_BLACK)
+-
+-#endif
++#ifndef COMMON_H
++#define COMMON_H
++
++typedef unsigned char  u8;
++typedef unsigned short u16;
++typedef unsigned int   u32;
++typedef int            s32;
++typedef unsigned long  uintptr;
++
++#define VGA_ADDR 0xB8000
++#define WIDTH 80
++#define HEIGHT 25
++
++/* Runtime screen dimensions (can be changed at runtime via vga_set_mode)
++ * Default values are the same as WIDTH/HEIGHT macros. */
++extern int SCREEN_W;
++extern int SCREEN_H;
++
++/* VGA 16-color palette indices */
++#define COL_BLACK        0x0
++#define COL_BLUE         0x1
++#define COL_GREEN        0x2
++#define COL_CYAN         0x3
++#define COL_RED          0x4
++#define COL_MAGENTA      0x5
++#define COL_BROWN        0x6
++#define COL_LIGHT_GREY   0x7
++#define COL_DARK_GREY    0x8
++#define COL_LIGHT_BLUE   0x9
++#define COL_LIGHT_GREEN  0xA
++#define COL_LIGHT_CYAN   0xB
++#define COL_LIGHT_RED    0xC
++#define COL_LIGHT_MAGENTA 0xD
++#define COL_YELLOW       0xE
++#define COL_WHITE        0xF
++
++/* Build a VGA attribute byte from foreground and background color indices */
++#define VGA_ATTR(fg, bg) (u8)(((bg) << 4) | ((fg) & 0xF))
++
++/* Named theme attributes used throughout the OS */
++#define ATTR_NORMAL       VGA_ATTR(COL_LIGHT_GREY,   COL_BLACK)
++#define ATTR_TITLE        VGA_ATTR(COL_WHITE,         COL_BLUE)
++#define ATTR_SELECTED     VGA_ATTR(COL_BLACK,         COL_LIGHT_CYAN)
++#define ATTR_BORDER       VGA_ATTR(COL_LIGHT_CYAN,    COL_BLACK)
++#define ATTR_STATUS       VGA_ATTR(COL_BLACK,         COL_LIGHT_GREY)
++#define ATTR_ERROR        VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
++#define ATTR_SUCCESS      VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
++#define ATTR_PROMPT       VGA_ATTR(COL_YELLOW,        COL_BLACK)
++#define ATTR_DIR          VGA_ATTR(COL_LIGHT_BLUE,    COL_BLACK)
++#define ATTR_FILE_TEXT    VGA_ATTR(COL_LIGHT_GREY,    COL_BLACK)
++#define ATTR_FILE_MD      VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
++#define ATTR_FILE_HTML    VGA_ATTR(COL_LIGHT_CYAN,    COL_BLACK)
++#define ATTR_FILE_NOIRC   VGA_ATTR(COL_YELLOW,        COL_BLACK)
++#define ATTR_FILE_EXE     VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
++#define ATTR_VIEWER_BG    VGA_ATTR(COL_LIGHT_GREY,    COL_BLACK)
++#define ATTR_VIEWER_TITLE VGA_ATTR(COL_WHITE,         COL_BLUE)
++#define ATTR_NOIRC_OUTPUT VGA_ATTR(COL_LIGHT_GREEN,   COL_BLACK)
++#define ATTR_NOIRC_ERROR  VGA_ATTR(COL_LIGHT_RED,     COL_BLACK)
++#define ATTR_NOIRC_PROMPT VGA_ATTR(COL_YELLOW,        COL_BLACK)
++
++#endif
+diff --git a/include/fs.h b/include/fs.h
+index c276336..fcfe097 100644
+--- a/include/fs.h
++++ b/include/fs.h
+@@ -1,86 +1,86 @@
+-#ifndef FS_H
+-#define FS_H
+-#include "common.h"
+-
+-/* ---- Sizes ---- */
+-#define MAX_FILENAME 32
+-#define MAX_CONTENT  4096
+-
+-/* Per-directory limits (memory footprint tight) */
+-#define MAX_FILES_PER_DIR  16
+-#define MAX_DIRS_PER_DIR   8
+-
+-/* File types */
+-#define FILE_TEXT     0   /* plain .txt */
+-#define FILE_EXE      1   /* binary / executable marker */
+-#define FILE_GAME     2   /* game data */
+-#define FILE_MARKDOWN 3   /* .md  — rendered with simple heading/bold hints */
+-#define FILE_HTML     4   /* .html — rendered as plain text, tags stripped */
+-#define FILE_NOIRC    5   /* .nc  — Noir C source, interpreted on run */
+-
+-/* Error codes */
+-#define FS_OK           0
+-#define FS_ERR_NOSPACE -1
+-#define FS_ERR_EXISTS  -2
+-#define FS_ERR_NOTFOUND -3
+-#define FS_ERR_RDONLY  -4
+-#define FS_ERR_INVALID -5
+-#define FS_ERR_NOTDIR  -6
+-#define FS_ERR_DIRNOTEMPTY -7
+-
+-/* Forward decl */
+-struct Dir;
+-
+-/* File visible to other modules */
+-struct File {
+-    char name[MAX_FILENAME];
+-    char content[MAX_CONTENT];
+-    int  length;
+-    u8   type;
+-    u8   readonly;
+-};
+-
+-/* Directory node (tree) */
+-struct Dir {
+-    char name[MAX_FILENAME];
+-    struct Dir* parent;
+-
+-    /* children dirs */
+-    struct Dir* subdirs[MAX_DIRS_PER_DIR];
+-    int subdir_count;
+-
+-    /* files */
+-    struct File files[MAX_FILES_PER_DIR];
+-    int file_count;
+-};
+-
+-/* ---------- Init / CWD ---------- */
+-void init_filesystem(void);
+-struct Dir* fs_root(void);
+-struct Dir* fs_cwd(void);
+-void fs_pwd(char* out, int out_len);        /* prints path like /, /docs, /docs/projects */
+-
+-/* ---------- Directory ops ---------- */
+-int fs_mkdir(const char* name);              /* in CWD */
+-int fs_chdir(const char* name);              /* name | ".." | "/" (absolute root) */
+-int fs_rmdir(const char* name);              /* only if empty */
+-int fs_dir_count(void);                      /* #subdirs in CWD */
+-struct Dir* fs_dir_get(int idx);             /* idx < fs_dir_count() */
+-struct Dir* fs_find_dir(const char* name);   /* in CWD */
+-
+-/* ---------- File ops in CWD  ---------- */
+-int fs_count(void);                          /* files in CWD (kept for UI) */
+-struct File* fs_get(int idx);                /* file by index in CWD */
+-struct File* fs_find(const char* name);      /* file by name in CWD */
+-int fs_create(const char* name, u8 type);    /* create file in CWD */
+-int fs_delete(const char* name);             /* delete file in CWD (not readonly) */
+-int fs_write(const char* name, const char* data);
+-int fs_append(const char* name, const char* data);
+-
+-/* ----------  helpers ---------- */
+-void fs_list_counts(int* out_dirs, int* out_files);  /* both counts for UI */
+-
+-/* Infer file type from filename extension */
+-u8 fs_type_from_name(const char* name);
+-
+-#endif 
++#ifndef FS_H
++#define FS_H
++#include "common.h"
++
++/* ---- Sizes ---- */
++#define MAX_FILENAME 32
++#define MAX_CONTENT  4096
++
++/* Per-directory limits (memory footprint tight) */
++#define MAX_FILES_PER_DIR  16
++#define MAX_DIRS_PER_DIR   8
++
++/* File types */
++#define FILE_TEXT     0   /* plain .txt */
++#define FILE_EXE      1   /* binary / executable marker */
++#define FILE_GAME     2   /* game data */
++#define FILE_MARKDOWN 3   /* .md  — rendered with simple heading/bold hints */
++#define FILE_HTML     4   /* .html — rendered as plain text, tags stripped */
++#define FILE_NOIRC    5   /* .nc  — Noir C source, interpreted on run */
++
++/* Error codes */
++#define FS_OK           0
++#define FS_ERR_NOSPACE -1
++#define FS_ERR_EXISTS  -2
++#define FS_ERR_NOTFOUND -3
++#define FS_ERR_RDONLY  -4
++#define FS_ERR_INVALID -5
++#define FS_ERR_NOTDIR  -6
++#define FS_ERR_DIRNOTEMPTY -7
++
++/* Forward decl */
++struct Dir;
++
++/* File visible to other modules */
++struct File {
++    char name[MAX_FILENAME];
++    char content[MAX_CONTENT];
++    int  length;
++    u8   type;
++    u8   readonly;
++};
++
++/* Directory node (tree) */
++struct Dir {
++    char name[MAX_FILENAME];
++    struct Dir* parent;
++
++    /* children dirs */
++    struct Dir* subdirs[MAX_DIRS_PER_DIR];
++    int subdir_count;
++
++    /* files */
++    struct File files[MAX_FILES_PER_DIR];
++    int file_count;
++};
++
++/* ---------- Init / CWD ---------- */
++void init_filesystem(void);
++struct Dir* fs_root(void);
++struct Dir* fs_cwd(void);
++void fs_pwd(char* out, int out_len);        /* prints path like /, /docs, /docs/projects */
++
++/* ---------- Directory ops ---------- */
++int fs_mkdir(const char* name);              /* in CWD */
++int fs_chdir(const char* name);              /* name | ".." | "/" (absolute root) */
++int fs_rmdir(const char* name);              /* only if empty */
++int fs_dir_count(void);                      /* #subdirs in CWD */
++struct Dir* fs_dir_get(int idx);             /* idx < fs_dir_count() */
++struct Dir* fs_find_dir(const char* name);   /* in CWD */
++
++/* ---------- File ops in CWD  ---------- */
++int fs_count(void);                          /* files in CWD (kept for UI) */
++struct File* fs_get(int idx);                /* file by index in CWD */
++struct File* fs_find(const char* name);      /* file by name in CWD */
++int fs_create(const char* name, u8 type);    /* create file in CWD */
++int fs_delete(const char* name);             /* delete file in CWD (not readonly) */
++int fs_write(const char* name, const char* data);
++int fs_append(const char* name, const char* data);
++
++/* ----------  helpers ---------- */
++void fs_list_counts(int* out_dirs, int* out_files);  /* both counts for UI */
++
++/* Infer file type from filename extension */
++u8 fs_type_from_name(const char* name);
++
++#endif 
+diff --git a/include/input.h b/include/input.h
+index b315387..ee2cecd 100644
+--- a/include/input.h
++++ b/include/input.h
+@@ -1,41 +1,44 @@
+-#ifndef INPUT_H
+-#define INPUT_H
+-
+-#include "common.h"
+-
+-/* Special key codes */
+-#define K_ESC        27
+-#define K_TAB        9
+-#define K_ARROW_UP   256
+-#define K_ARROW_DOWN 257
+-#define K_ARROW_LEFT 258
+-#define K_ARROW_RIGHT 259
+-#define K_PAGE_UP    260
+-#define K_PAGE_DOWN  261
+-u8 kb_read_scancode(void);
+-
+-/* Function keys */
+-#define K_F1         262
+-#define K_F2         263
+-#define K_F3         264
+-/* Additional keys */
+-#define K_HOME       265
+-#define K_END        266
+-
+-/* Function declarations */
+-int read_key(void);
+-
+-/* Debug helpers: toggle overlay showing last scancode/key */
+-void input_toggle_debug(void);
+-int  input_debug_enabled(void);
+-int  input_get_last_scancode(void);
+-int  input_get_last_key(void);
+-
+-/* Modifier state functions */
+-int input_readline(char *buf, int max);
+-int is_shift_pressed(void);
+-int is_ctrl_pressed(void);
+-int is_alt_pressed(void);
+-int is_caps_lock_on(void);
+-
++#ifndef INPUT_H
++#define INPUT_H
++
++#include "common.h"
++
++/* Special key codes */
++#define K_ESC        27
++#define K_TAB        9
++#define K_ARROW_UP   256
++#define K_ARROW_DOWN 257
++#define K_ARROW_LEFT 258
++#define K_ARROW_RIGHT 259
++#define K_PAGE_UP    260
++#define K_PAGE_DOWN  261
++u8 kb_read_scancode(void);
++
++/* Function keys */
++#define K_F1         262
++#define K_F2         263
++#define K_F3         264
++/* Additional keys */
++#define K_HOME       265
++#define K_END        266
++
++/* Function declarations */
++int read_key(void);
++int wait_key(void);
++
++/* Debug helpers: toggle overlay showing last scancode/key */
++void input_toggle_debug(void);
++int  input_debug_enabled(void);
++int  input_get_last_scancode(void);
++int  input_get_last_key(void);
++
++/* Modifier state functions */
++int input_readline(char *buf, int max);
++int is_shift_pressed(void);
++int is_ctrl_pressed(void);
++int is_alt_pressed(void);
++int is_caps_lock_on(void);
++/* Reset modifier state (shift/ctrl/alt) to avoid stuck modifiers after modal reads */
++void input_reset_modifiers(void);
++
+ #endif 
+\ No newline at end of file
+diff --git a/include/mode.h b/include/mode.h
+index b2fb60f..650e17f 100644
+--- a/include/mode.h
++++ b/include/mode.h
+@@ -1,12 +1,12 @@
+-#ifndef MODE_H
+-#define MODE_H
+-
+-/* Shared mode constants used across kernel, shell, editor. */
+-enum {
+-    MODE_BROWSER = 0,
+-    MODE_EDITOR  = 1,
+-    MODE_GAME    = 2,
+-    MODE_NOIRC   = 3
+-};
+-
+-#endif
++#ifndef MODE_H
++#define MODE_H
++
++/* Shared mode constants used across kernel, shell, editor. */
++enum {
++    MODE_BROWSER = 0,
++    MODE_EDITOR  = 1,
++    MODE_GAME    = 2,
++    MODE_NOIRC   = 3
++};
++
++#endif
+diff --git a/include/mouse.h b/include/mouse.h
+index 9131086..b6b1180 100644
+--- a/include/mouse.h
++++ b/include/mouse.h
+@@ -1,21 +1,21 @@
+-#ifndef MOUSE_H
+-#define MOUSE_H
+-
+-/* Mouse state structure */
+-typedef struct {
+-    int x, y;                    /* Current position */
+-    int delta_x, delta_y;        /* Movement deltas */
+-    unsigned char buttons;       /* Button states (bit 0=left, bit 1=right, bit 2=middle) */
+-} mouse_state_t;
+-
+-/* Mouse function prototypes */
+-void init_mouse(void);
+-void mouse_handler(void);
+-mouse_state_t* get_mouse_state(void);
+-
+-/* Mouse button constants */
+-#define MOUSE_LEFT_BUTTON   (1 << 0)
+-#define MOUSE_RIGHT_BUTTON  (1 << 1)
+-#define MOUSE_MIDDLE_BUTTON (1 << 2)
+-
++#ifndef MOUSE_H
++#define MOUSE_H
++
++/* Mouse state structure */
++typedef struct {
++    int x, y;                    /* Current position */
++    int delta_x, delta_y;        /* Movement deltas */
++    unsigned char buttons;       /* Button states (bit 0=left, bit 1=right, bit 2=middle) */
++} mouse_state_t;
++
++/* Mouse function prototypes */
++void init_mouse(void);
++void mouse_handler(void);
++mouse_state_t* get_mouse_state(void);
++
++/* Mouse button constants */
++#define MOUSE_LEFT_BUTTON   (1 << 0)
++#define MOUSE_RIGHT_BUTTON  (1 << 1)
++#define MOUSE_MIDDLE_BUTTON (1 << 2)
++
+ #endif
+\ No newline at end of file
+diff --git a/include/noirc.h b/include/noirc.h
+index 592a0aa..94a70eb 100644
+--- a/include/noirc.h
++++ b/include/noirc.h
+@@ -1,11 +1,11 @@
+-#ifndef NOIRC_H
+-#define NOIRC_H
+-
+-#include "common.h"
+-
+-struct File;
+-
+-/* Run a Noir C source file (lightweight interpreter stub). */
+-void noirc_run(struct File* f);
+-
+-#endif
++#ifndef NOIRC_H
++#define NOIRC_H
++
++#include "common.h"
++
++struct File;
++
++/* Run a Noir C source file (lightweight interpreter stub). */
++void noirc_run(struct File* f);
++
++#endif
+diff --git a/include/shell.h b/include/shell.h
+index 87e8b8d..c2fc4b2 100644
+--- a/include/shell.h
++++ b/include/shell.h
+@@ -1,13 +1,13 @@
+-#ifndef SHELL_H
+-#define SHELL_H
+-
+-/* Called every kernel loop while in browser mode.
+- * explorer_sel: current selected index in the explorer
+- * mode pointer to current_mode (so shell can switch to MODE_EDITOR / MODE_GAME)
+- * Returns updated explorer_sel.
+- */
+-int shell_loop(int explorer_sel, int *mode, int first_key);
+-/* Open the command prompt (blocking) and execute the entered command. */
+-int shell_open_prompt(int explorer_sel, int *mode);
+-
+-#endif 
++#ifndef SHELL_H
++#define SHELL_H
++
++/* Called every kernel loop while in browser mode.
++ * explorer_sel: current selected index in the explorer
++ * mode pointer to current_mode (so shell can switch to MODE_EDITOR / MODE_GAME)
++ * Returns updated explorer_sel.
++ */
++int shell_loop(int explorer_sel, int *mode, int first_key);
++/* Open the command prompt (blocking) and execute the entered command. */
++int shell_open_prompt(int explorer_sel, int *mode);
++
++#endif 
+diff --git a/include/ui.h b/include/ui.h
+index 60eaf25..5360629 100644
+--- a/include/ui.h
++++ b/include/ui.h
+@@ -1,56 +1,56 @@
+-#ifndef UI_H
+-#define UI_H
+-#include "common.h"
+-#include "fs.h"
+-
+-typedef struct {
+-    int x,y,w,h;
+-    const char* title;
+-} Window;
+-
+-/* Button structure for clickable elements */
+-typedef struct {
+-    int x, y, w, h;           /* Position and size */
+-    const char* text;         /* Button text */
+-    unsigned char normal_attr; /* Normal color */
+-    unsigned char pressed_attr; /* Pressed color */
+-    int pressed;              /* Pressed state */
+-    void (*callback)(void);   /* Click callback */
+-} Button;
+-
+-void ui_draw(void);
+-void ui_set_selected(int sel);
+-int ui_get_selected(void);
+-void ui_scroll_viewer(int delta);
+-void ui_clear(void);
+-int ui_selected_file_index(void);
+-
+-/* Explorer scroll reset (used after cd) */
+-void ui_reset_explorer_scroll(void);
+-
+-/* Panel focus */
+-int  ui_get_active_panel(void);
+-void ui_toggle_active_panel(void);
+-
+-/* Page sizes for kernel navigation */
+-int ui_explorer_page_size(void);
+-int ui_viewer_page_size(void);
+-
+-/* Button callback setters */
+-void ui_set_restart_callback(void (*cb)(void));
+-void ui_set_shutdown_callback(void (*cb)(void));
+-void ui_set_sleep_callback(void (*cb)(void));
+-
+-/* Key and mouse handling */
+-void ui_handle_key(int key);
+-void ui_handle_mouse_click(int x, int y, int button);
+-
+-/* Power screen functions */
+-void show_restart_screen(void);
+-void show_shutdown_screen(void);
+-void show_sleep_screen(void);
+-
+-/* Recompute window layout after a screen size change */
+-void ui_relayout(void);
+-
+-#endif
++#ifndef UI_H
++#define UI_H
++#include "common.h"
++#include "fs.h"
++
++typedef struct {
++    int x,y,w,h;
++    const char* title;
++} Window;
++
++/* Button structure for clickable elements */
++typedef struct {
++    int x, y, w, h;           /* Position and size */
++    const char* text;         /* Button text */
++    unsigned char normal_attr; /* Normal color */
++    unsigned char pressed_attr; /* Pressed color */
++    int pressed;              /* Pressed state */
++    void (*callback)(void);   /* Click callback */
++} Button;
++
++void ui_draw(void);
++void ui_set_selected(int sel);
++int ui_get_selected(void);
++void ui_scroll_viewer(int delta);
++void ui_clear(void);
++int ui_selected_file_index(void);
++
++/* Explorer scroll reset (used after cd) */
++void ui_reset_explorer_scroll(void);
++
++/* Panel focus */
++int  ui_get_active_panel(void);
++void ui_toggle_active_panel(void);
++
++/* Page sizes for kernel navigation */
++int ui_explorer_page_size(void);
++int ui_viewer_page_size(void);
++
++/* Button callback setters */
++void ui_set_restart_callback(void (*cb)(void));
++void ui_set_shutdown_callback(void (*cb)(void));
++void ui_set_sleep_callback(void (*cb)(void));
++
++/* Key and mouse handling */
++void ui_handle_key(int key);
++void ui_handle_mouse_click(int x, int y, int button);
++
++/* Power screen functions */
++void show_restart_screen(void);
++void show_shutdown_screen(void);
++void show_sleep_screen(void);
++
++/* Recompute window layout after a screen size change */
++void ui_relayout(void);
++
++#endif
+diff --git a/include/util.h b/include/util.h
+index 9804005..33f441a 100644
+--- a/include/util.h
++++ b/include/util.h
+@@ -1,14 +1,14 @@
+-#ifndef UTIL_H
+-#define UTIL_H
+-#include "common.h"
+-
+-int kstrcmp(const char* a, const char* b);
+-int kstrncmp(const char* a, const char* b, int n);
+-void kstrcpy(char* dst, const char* src);
+-int kstrlen(const char* s);
+-void kstrncpy(char *dest, const char *src, int n);
+-
+-/* Convert integer to decimal string (returns length written) */
+-int int_to_dec(char *out, int val);
+-
+-#endif
++#ifndef UTIL_H
++#define UTIL_H
++#include "common.h"
++
++int kstrcmp(const char* a, const char* b);
++int kstrncmp(const char* a, const char* b, int n);
++void kstrcpy(char* dst, const char* src);
++int kstrlen(const char* s);
++void kstrncpy(char *dest, const char *src, int n);
++
++/* Convert integer to decimal string (returns length written) */
++int int_to_dec(char *out, int val);
++
++#endif
+diff --git a/include/vga.h b/include/vga.h
+index f880fdb..1c4719c 100644
+--- a/include/vga.h
++++ b/include/vga.h
+@@ -1,21 +1,21 @@
+-#ifndef VGA_H
+-#define VGA_H
+-#include "common.h"
+-
+-void vga_putcell(int x, int y, char ch, u8 attr);
+-void vga_clear(void);
+-void term_putc(char c);
+-void term_write(const char* s);
+-void draw_box(int x, int y, int w, int h, const char* title, u8 title_attr, u8 border_attr, u8 bg_attr);
+-void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* text, u8 attr);
+-
+-/* Get character/attribute at screen position */
+-char vga_getcell_char(int x, int y);
+-unsigned char vga_getcell_attr(int x, int y);
+-
+-/* Runtime mode control */
+-void vga_set_mode(int w, int h);
+-int vga_get_width(void);
+-int vga_get_height(void);
+-
+-#endif
++#ifndef VGA_H
++#define VGA_H
++#include "common.h"
++
++void vga_putcell(int x, int y, char ch, u8 attr);
++void vga_clear(void);
++void term_putc(char c);
++void term_write(const char* s);
++void draw_box(int x, int y, int w, int h, const char* title, u8 title_attr, u8 border_attr, u8 bg_attr);
++void draw_text_in_win(int x, int y, int w, int h, int wx, int wy, const char* text, u8 attr);
++
++/* Get character/attribute at screen position */
++char vga_getcell_char(int x, int y);
++unsigned char vga_getcell_attr(int x, int y);
++
++/* Runtime mode control */
++void vga_set_mode(int w, int h);
++int vga_get_width(void);
++int vga_get_height(void);
++
++#endif
+diff --git a/include/viewer.h b/include/viewer.h
+index 98524d3..0aba512 100644
+--- a/include/viewer.h
++++ b/include/viewer.h
+@@ -1,11 +1,11 @@
+-#ifndef VIEWER_H
+-#define VIEWER_H
+-#include "common.h"
+-#include "fs.h"
+-
+-/* Render a file into a viewer region. `x,y,w,h` are window coords in text cells.
+- * `f` may be NULL to show an empty message. `scroll` indicates how many lines to skip.
+- */
+-void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll);
+-
+-#endif
++#ifndef VIEWER_H
++#define VIEWER_H
++#include "common.h"
++#include "fs.h"
++
++/* Render a file into a viewer region. `x,y,w,h` are window coords in text cells.
++ * `f` may be NULL to show an empty message. `scroll` indicates how many lines to skip.
++ */
++void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll);
++
++#endif
+diff --git a/iso/boot/grub/grub.cfg b/iso/boot/grub/grub.cfg
+index 714d717..df54751 100644
+--- a/iso/boot/grub/grub.cfg
++++ b/iso/boot/grub/grub.cfg
+@@ -1,94 +1,94 @@
+-# GRUB Configuration for NoirOS - Enhanced Version
+-
+-# Timeout and default
+-set timeout=8
+-set default=0
+-
+-# Color scheme - Dark theme with cyan/purple accents
+-set color_normal=white/black
+-set color_highlight=black/cyan
+-
+-# Menu colors
+-set menu_color_normal=white/black
+-set menu_color_highlight=black/cyan
+-
+-# Background & terminal
+-terminal_output console
+-set gfxmode=auto
+-set gfxpayload=keep
+-# Optional background image (uncomment if available)
+-# background_image /boot/grub/noirbg.png
+-# Optional custom font
+-# loadfont /boot/grub/fonts/unicode.pf2
+-
+-# Function: Display loading messages
+-function boot_message {
+-    echo "================================"
+-    echo "   Booting NoirOS Kernel..."
+-    echo "   Initializing subsystems..."
+-    echo "   File system, UI, and devices"
+-    echo "================================"
+-}
+-
+-# ------------------------------
+-# Main NoirOS Boot Menu
+-# ------------------------------
+-menuentry "NoirOS - Main System" --class noiros --class os {
+-    boot_message
+-    multiboot /boot/kernel.elf
+-    echo "NoirOS started successfully!"
+-    read
+-}
+-
+-# Debug/Recovery Submenu
+-submenu "NoirOS - Recovery, Debug" {
+-    menuentry "Debug Mode (Verbose)" --class debug {
+-        echo "Loading NoirOS in debug mode..."
+-        echo "Verbose output enabled"
+-        multiboot /boot/kernel.elf debug
+-    }
+-
+-    menuentry "Safe Mode" --class safe {
+-        echo "Loading NoirOS in safe mode..."
+-        echo "Minimal drivers and UI loaded"
+-        multiboot /boot/kernel.elf safe
+-    }
+-}
+-
+-# Utilities Submenu
+-submenu "System Utilities" {
+-    # Memory test
+-    menuentry "Memory Test (memtest86plus)" --class memtest {
+-        echo "Launching memory test utility..."
+-        linux16 /boot/memtestiso
+-    }
+-
+-    # System info
+-    menuentry "System Information" --class info {
+-        echo "=== NoirOS System Info ==="
+-        echo "Kernel: NoirOS Custom Kernel"
+-        echo "Features: File Browser, Text Editor, Snake Game"
+-        echo "Architecture: x86 (32-bit)"
+-        echo "Boot Method: Multiboot"
+-        echo "Press any key to return..."
+-        read
+-    }
+-}
+-
+-# Separator for menu clarity
+-menuentry "──────────────────────────────" { true }
+-
+-# Power options
+-menuentry "Reboot System" --class reboot {
+-    echo "Rebooting system..."
+-    reboot
+-}
+-
+-menuentry "Shutdown System" --class halt {
+-    echo "Shutting down system..."
+-    halt
+-}
+-
+-# Keyboard hint footer
+-insmod gfxterm
+-echo "Use arrows to navigate, Enter to select, Esc to go back"
++# GRUB Configuration for NoirOS - Enhanced Version
++
++# Timeout and default
++set timeout=8
++set default=0
++
++# Color scheme - Dark theme with cyan/purple accents
++set color_normal=white/black
++set color_highlight=black/cyan
++
++# Menu colors
++set menu_color_normal=white/black
++set menu_color_highlight=black/cyan
++
++# Background & terminal
++terminal_output console
++set gfxmode=auto
++set gfxpayload=keep
++# Optional background image (uncomment if available)
++# background_image /boot/grub/noirbg.png
++# Optional custom font
++# loadfont /boot/grub/fonts/unicode.pf2
++
++# Function: Display loading messages
++function boot_message {
++    echo "================================"
++    echo "   Booting NoirOS Kernel..."
++    echo "   Initializing subsystems..."
++    echo "   File system, UI, and devices"
++    echo "================================"
++}
++
++# ------------------------------
++# Main NoirOS Boot Menu
++# ------------------------------
++menuentry "NoirOS - Main System" --class noiros --class os {
++    boot_message
++    multiboot /boot/kernel.elf
++    echo "NoirOS started successfully!"
++    read
++}
++
++# Debug/Recovery Submenu
++submenu "NoirOS - Recovery, Debug" {
++    menuentry "Debug Mode (Verbose)" --class debug {
++        echo "Loading NoirOS in debug mode..."
++        echo "Verbose output enabled"
++        multiboot /boot/kernel.elf debug
++    }
++
++    menuentry "Safe Mode" --class safe {
++        echo "Loading NoirOS in safe mode..."
++        echo "Minimal drivers and UI loaded"
++        multiboot /boot/kernel.elf safe
++    }
++}
++
++# Utilities Submenu
++submenu "System Utilities" {
++    # Memory test
++    menuentry "Memory Test (memtest86plus)" --class memtest {
++        echo "Launching memory test utility..."
++        linux16 /boot/memtestiso
++    }
++
++    # System info
++    menuentry "System Information" --class info {
++        echo "=== NoirOS System Info ==="
++        echo "Kernel: NoirOS Custom Kernel"
++        echo "Features: File Browser, Text Editor, Snake Game"
++        echo "Architecture: x86 (32-bit)"
++        echo "Boot Method: Multiboot"
++        echo "Press any key to return..."
++        read
++    }
++}
++
++# Separator for menu clarity
++menuentry "──────────────────────────────" { true }
++
++# Power options
++menuentry "Reboot System" --class reboot {
++    echo "Rebooting system..."
++    reboot
++}
++
++menuentry "Shutdown System" --class halt {
++    echo "Shutting down system..."
++    halt
++}
++
++# Keyboard hint footer
++insmod gfxterm
++echo "Use arrows to navigate, Enter to select, Esc to go back"
+diff --git a/iso/boot/kernel.elf b/iso/boot/kernel.elf
+index 4179f3a..37030e3 100644
+Binary files a/iso/boot/kernel.elf and b/iso/boot/kernel.elf differ
+diff --git a/kernel.bin b/kernel.bin
+index 07d1055..ddcbd19 100644
+Binary files a/kernel.bin and b/kernel.bin differ
+diff --git a/kernel.elf b/kernel.elf
+index 4179f3a..37030e3 100644
+Binary files a/kernel.elf and b/kernel.elf differ
+diff --git a/linker.ld b/linker.ld
+index 4a45126..fb093ac 100644
+--- a/linker.ld
++++ b/linker.ld
+@@ -1,32 +1,32 @@
+-ENTRY(start)
+-
+-SECTIONS
+-{
+-    /* Load kernel at 1MB (0x00100000) — standard GRUB load address */
+-    . = 0x00100000;
+-
+-    /* Combine multiboot  text to ensure ordering */
+-    .text : {
+-        *(.multiboot)    /* Multiboot header  first */
+-        *(.text*)        /* text/code sections */
+-    }
+-
+-    /* Read-only data (strings, consts) */
+-    .rodata ALIGN(4096) : {
+-        *(.rodata*)
+-    }
+-
+-    /* Initialized data */
+-    .data ALIGN(4096) : {
+-        *(.data*)
+-    }
+-
+-    /* Uninitialized data */
+-    .bss ALIGN(4096) : {
+-        *(COMMON)
+-        *(.bss*)
+-    }
+-
+-    /* Mark end of kernel symbol */
+-    _kernel_end = .;
++ENTRY(start)
++
++SECTIONS
++{
++    /* Load kernel at 1MB (0x00100000) — standard GRUB load address */
++    . = 0x00100000;
++
++    /* Combine multiboot  text to ensure ordering */
++    .text : {
++        *(.multiboot)    /* Multiboot header  first */
++        *(.text*)        /* text/code sections */
++    }
++
++    /* Read-only data (strings, consts) */
++    .rodata ALIGN(4096) : {
++        *(.rodata*)
++    }
++
++    /* Initialized data */
++    .data ALIGN(4096) : {
++        *(.data*)
++    }
++
++    /* Uninitialized data */
++    .bss ALIGN(4096) : {
++        *(COMMON)
++        *(.bss*)
++    }
++
++    /* Mark end of kernel symbol */
++    _kernel_end = .;
+ }
+\ No newline at end of file
+diff --git a/src/apps.c b/src/apps.c
+index e8d1c55..a44c1a8 100644
+--- a/src/apps.c
++++ b/src/apps.c
+@@ -1,12 +1,12 @@
+-#include "../include/apps.h"
+-#include "../include/game_snake.h"
+-#include "../include/editor.h"
+-
+-void app_editor_open(const char* filename) {
+-    (void)filename;
+-    /* app wrappers are no-ops now, kernel/shell call editor_open() */
+-}
+-
+-void app_snake_launch(void) {
+-    snake_init();
+-}
++#include "../include/apps.h"
++#include "../include/game_snake.h"
++#include "../include/editor.h"
++
++void app_editor_open(const char* filename) {
++    (void)filename;
++    /* app wrappers are no-ops now, kernel/shell call editor_open() */
++}
++
++void app_snake_launch(void) {
++    snake_init();
++}
+diff --git a/src/editor.c b/src/editor.c
+index eb2f3c4..164134a 100644
+--- a/src/editor.c
++++ b/src/editor.c
+@@ -14,6 +14,8 @@ static int  editor_cursor_x = 0;
+ static int  editor_cursor_y = 0;
+ static int  editor_scroll   = 0;
+ static int  editor_modified = 0;
++static int  editor_needs_redraw = 1;
++static int  editor_vim_mode = 0;
+ 
+ /* Visible editing region (inside the border/title rows).
+  * Title bar at y=0, content rows 1..(HEIGHT-2), status at y=HEIGHT-1.
+@@ -93,11 +95,14 @@ static void delete_char_before(int off) {
+  * Redraw the editor UI: title bar, visible text window, cursor and status.
+  */
+ void editor_draw(void) {
+-    ui_clear();
++    if (editor_needs_redraw) {
++        ui_clear();
++        editor_needs_redraw = 0;
++    }
+ 
+     /* Title bar */
+     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
+-    const char *title = "NoirOS Editor  Ctrl+S save  Ctrl+X exit";
++    const char *title = (editor_vim_mode == 0) ? "NoirOS NeoVim - NORMAL MODE   :w save  :q exit" : "NoirOS NeoVim - INSERT MODE   Esc to Return";
+     for (int i = 0; title[i] && i < WIDTH - 2; ++i)
+         vga_putcell(1 + i, 0, title[i], 0x1F);
+ 
+@@ -106,9 +111,10 @@ void editor_draw(void) {
+         int line_no = editor_scroll + ln;
+         int off     = get_line_start(line_no);
+ 
++        for (int x = 0; x < VIEW_W; ++x) vga_putcell(1 + x, 1 + ln, ' ', 0x07);
++
+         if (off >= editor_len) {
+             /* Past end of file — blank line */
+-            draw_text_in_win(0, 1, WIDTH, HEIGHT - 1, 0, ln, "", 0x07);
+             continue;
+         }
+ 
+@@ -182,11 +188,24 @@ void editor_open(const char *fname, int *mode) {
+ 
+     editor_cursor_x = editor_cursor_y = editor_scroll = 0;
+     editor_modified = 0;
++    editor_needs_redraw = 1;
++    editor_vim_mode = 0;
+ 
+     *mode = MODE_EDITOR;
+     editor_draw();
+ }
+ 
++/* Simple modal message: display message on status row and wait for any key */
++static void editor_modal_message(const char *msg) {
++    /* Clear status row */
++    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', 0x07);
++    for (int i = 0; msg[i] && i < WIDTH - 2; ++i) {
++        vga_putcell(1 + i, HEIGHT - 1, msg[i], 0x0E);
++    }
++    wait_key();
++    editor_draw();
++}
++
+ /* ---- Key handler ---- */
+ 
+ /**
+@@ -196,6 +215,53 @@ void editor_open(const char *fname, int *mode) {
+  * @param mode pointer to mode variable (may be changed to MODE_BROWSER)
+  */
+ void editor_handle_key(int key, int *mode) {
++    if (editor_vim_mode == 0) { // NORMAL MODE
++        if (key == 'i') {
++            editor_vim_mode = 1;
++            editor_needs_redraw = 1;
++            return;
++        } else if (key == 'h') {
++            key = K_ARROW_LEFT;
++        } else if (key == 'j') {
++            key = K_ARROW_DOWN;
++        } else if (key == 'k') {
++            key = K_ARROW_UP;
++        } else if (key == 'l') {
++            key = K_ARROW_RIGHT;
++        } else if (key == ':') {
++            editor_modal_message(":");
++            vga_putcell(3, HEIGHT - 1, ' ', 0x0E);
++            int c1 = read_key();
++            vga_putcell(3, HEIGHT - 1, (char)c1, 0x0E);
++            if (c1 == 'w') {
++                int c2 = read_key();
++                if (c2 == '\n' || c2 == '\r') { key = CTRL_S; }
++                else if (c2 == 'q') {
++                    vga_putcell(4, HEIGHT - 1, (char)c2, 0x0E);
++                    int c3 = read_key();
++                    if (c3 == '\n' || c3 == '\r') { key = CTRL_S; editor_handle_key(key, mode); key = CTRL_X; }
++                }
++            } else if (c1 == 'q') {
++                int c2 = read_key();
++                if (c2 == '\n' || c2 == '\r') { key = CTRL_X; }
++            }
++            editor_needs_redraw = 1;
++            if (key != CTRL_S && key != CTRL_X) return;
++        }
++        
++        // Allow ONLY movement commands through
++        if (key != CTRL_X && key != CTRL_S && key != K_ARROW_DOWN && key != K_ARROW_UP && key != K_ARROW_LEFT && key != K_ARROW_RIGHT && key != K_PAGE_UP && key != K_PAGE_DOWN) {
++            return;
++        }
++    } else { // INSERT MODE
++        if (key == 0) return; /* DO NOT redraw on empty ticks in insert mode */
++        if (key == K_ESC) {
++            editor_vim_mode = 0;
++            editor_needs_redraw = 1;
++            return;
++        }
++    }
++
+     /* Ctrl+S and Ctrl+X are detected by the numeric value read_key() returns
+      * for Ctrl+letter (letter - 'a' + 1), NOT by checking is_ctrl_pressed()
+      * separately, because read_key() already encodes both. */
+diff --git a/src/game_snake.c b/src/game_snake.c
+index d4caae4..93943ed 100644
+--- a/src/game_snake.c
++++ b/src/game_snake.c
+@@ -19,6 +19,9 @@ struct SnakeGame {
+     struct { int x, y; } food;
+     int score;
+     int game_over;
++    int needs_redraw;
++    struct { int x, y; } old_tail;
++    int has_old_tail;
+ } snake_game;
+ 
+ /* ---- Food placement ---- */
+@@ -48,10 +51,6 @@ static void place_food(void) {
+             return;
+         }
+     }
+-        /**
+-         * Advance the snake game state by one tick: move the snake,
+-         * check collisions, handle food consumption and growth.
+-         */
+     /* Exhaustive fallback (snake fills nearly the whole board) */
+     for (int fy = 0; fy < GAME_H; ++fy)
+         for (int fx = 0; fx < GAME_W; ++fx)
+@@ -61,9 +60,6 @@ static void place_food(void) {
+                 return;
+             }
+     /* No free cell — game is effectively won; keep food where it is */
+-            /**
+-             * Render the current snake game state to the screen.
+-             */
+ }
+ 
+ /* ---- Public API ---- */
+@@ -80,17 +76,23 @@ void snake_init(void) {
+     snake_game.dy        = 0;
+     snake_game.score     = 0;
+     snake_game.game_over = 0;
++    snake_game.needs_redraw = 1;
++    snake_game.has_old_tail = 0;
+     place_food();
+ }
+ 
+ /**
+- * Handle a key event while in the snake game.
+- * Updates direction or ignores invalid reversals.
+- * @param k key value from read_key()
++ * Advance the snake game state by one tick: move the snake,
++ * check collisions, handle food consumption and growth.
+  */
+ void snake_update(void) {
+     if (snake_game.game_over) return;
+ 
++    /* Save old tail for erasing */
++    snake_game.old_tail.x = snake_game.body[snake_game.length - 1].x;
++    snake_game.old_tail.y = snake_game.body[snake_game.length - 1].y;
++    snake_game.has_old_tail = 1;
++
+     /* Shift body segments back */
+     for (int i = snake_game.length - 1; i > 0; --i)
+         snake_game.body[i] = snake_game.body[i - 1];
+@@ -125,18 +127,30 @@ void snake_update(void) {
+     }
+ }
+ 
++/**
++ * Render the current snake game state to the screen.
++ */
+ void snake_draw(void) {
+-    vga_clear();
+-
+-    /* Title bar */
+-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x2F);
+-    const char* title = "NoirOS Snake  Arrow keys to move  ESC to exit";
+-    for (int i = 0; title[i] && i < WIDTH - 2; ++i)
+-        vga_putcell(1 + i, 0, title[i], 0x2F);
++    if (snake_game.needs_redraw) {
++        vga_clear();
++
++        /* Title bar */
++        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x2F);
++        const char* title = "NoirOS Snake  Arrow keys to move  R restart  ESC to exit";
++        for (int i = 0; title[i] && i < WIDTH - 2; ++i)
++            vga_putcell(1 + i, 0, title[i], 0x2F);
++
++        /* Game border — positioned using named constants, not bare magic numbers */
++        draw_box(GAME_ORIGIN_X - 1, GAME_ORIGIN_Y - 1,
++                 GAME_W + 2, GAME_H + 2, "", 0x0E, 0x80, 0x00);
++        snake_game.needs_redraw = 0;
++    }
+ 
+-    /* Game border — positioned using named constants, not bare magic numbers */
+-    draw_box(GAME_ORIGIN_X - 1, GAME_ORIGIN_Y - 1,
+-             GAME_W + 2, GAME_H + 2, "", 0x0E, 0x80, 0x00);
++    if (snake_game.has_old_tail) {
++        vga_putcell(GAME_ORIGIN_X + snake_game.old_tail.x,
++                    GAME_ORIGIN_Y + snake_game.old_tail.y, ' ', 0x00);
++        snake_game.has_old_tail = 0;
++    }
+ 
+     /* Snake body */
+     for (int i = 0; i < snake_game.length; ++i) {
+@@ -170,16 +184,27 @@ void snake_draw(void) {
+ 
+     /* Game over overlay */
+     if (snake_game.game_over) {
+-        const char* msg = "GAME OVER!  Press ESC to exit";
++        const char* msg = "GAME OVER!  R to restart  ESC to exit";
+         int start_x = (WIDTH - kstrlen(msg)) / 2;
+         for (int i = 0; msg[i]; ++i)
+             vga_putcell(start_x + i, HEIGHT / 2, msg[i], 0x4F);
+     }
+ }
+ 
+-/* Returns 1 if ESC was pressed (caller should switch back to MODE_BROWSER). */
++/**
++ * Handle a key event while in the snake game.
++ * Updates direction or ignores invalid reversals.
++ * Returns 1 if the caller should switch back to MODE_BROWSER (ESC pressed).
++ * @param k key value from read_key()
++ */
+ int snake_handle_key(int k) {
+     if (k == K_ESC) return 1;   /* signal caller to exit game mode */
++    /* R or r: restart the game at any time (including after game over) */
++    if (k == 'r' || k == 'R') {
++        snake_init();
++        snake_draw();
++        return 2; /* restarted */
++    }
+     if (snake_game.game_over) return 0;
+     /* Prevent reversing directly into the body */
+     if (k == K_ARROW_UP    && snake_game.dy == 0) { snake_game.dx = 0; snake_game.dy = -1; }
+diff --git a/src/input.c b/src/input.c
+index 1258095..b70fde1 100644
+--- a/src/input.c
++++ b/src/input.c
+@@ -22,18 +22,14 @@ static int last_key = 0;
+  * is set.  A timeout counter is added so a broken/absent keyboard cannot
+  * stall the kernel indefinitely. */
+ u8 kb_read_scancode(void) {
+-    /* ~100 000 iterations is well above any real keyboard response time
+-     * at typical CPU speeds (tens of ms headroom). */
+-    for (volatile int timeout = 100000; timeout > 0; --timeout) {
+-        if (inb(0x64) & 0x01)
+-            {
+-                u8 val = inb(0x60);
+-                /* record last scancode for debug */
+-                last_scancode = val;
+-                return val;
+-            }
++    /* Non-blocking read: check if output buffer is full (bit 0) */
++    if (inb(0x64) & 0x01) {
++        u8 val = inb(0x60);
++        /* record last scancode for debug */
++        last_scancode = val;
++        return val;
+     }
+-    return 0; /* timeout — return a safe no-op value */
++    return 0;
+ }
+ 
+ /* Keyboard state tracking */
+@@ -107,7 +103,14 @@ int read_key(void) {
+ 
+     /* ---- Extended (E0-prefixed) scancodes ---- */
+     if (sc == 0xE0) {
+-        sc = kb_read_scancode();
++        /* The second byte might not be instantly available, wait briefly */
++        sc = 0;
++        for (volatile int timeout = 100000; timeout > 0; --timeout) {
++            sc = kb_read_scancode();
++            if (sc) break;
++        }
++        if (!sc) return 0; /* dropped if still not here */
++
+         if (sc & 0x80) {
+             /* Extended key release */
+             u8 rel = sc & 0x7F;
+@@ -184,6 +187,16 @@ int read_key(void) {
+     return 0;
+ }
+ 
++int wait_key(void) {
++    int k = 0;
++    while ((k = read_key()) == 0) {
++        for (volatile int i = 0; i < 500000; ++i) {
++            asm volatile("nop");
++        }
++    }
++    return k;
++}
++
+ void input_toggle_debug(void) { input_debug = !input_debug; }
+ int input_debug_enabled(void) { return input_debug; }
+ int input_get_last_scancode(void) { return last_scancode; }
+@@ -197,6 +210,16 @@ int is_ctrl_pressed(void)  { return kb_state.ctrl_pressed;  }
+ int is_alt_pressed(void)   { return kb_state.alt_pressed;   }
+ int is_caps_lock_on(void)  { return kb_state.caps_lock;     }
+ 
++/* Reset the tracked modifier keys (shift/ctrl/alt).
++ * Useful after modal reads that consume partial scancode sequences
++ * or when returning from UI contexts to ensure no modifier remains
++ * accidentally set. Caps lock is preserved. */
++void input_reset_modifiers(void) {
++    kb_state.shift_pressed = 0;
++    kb_state.ctrl_pressed  = 0;
++    kb_state.alt_pressed   = 0;
++}
++
+ /**
+  * Read a line of text from the keyboard into `buf` (NUL-terminated).
+  * Handles backspace and basic editing. Blocks until Enter is pressed.
+diff --git a/src/kernel.c b/src/kernel.c
+index c27443a..ab6ca5a 100644
+--- a/src/kernel.c
++++ b/src/kernel.c
+@@ -9,12 +9,14 @@
+ #include "../include/mode.h"
+ #include "../include/editor.h"
+ #include "../include/game_snake.h"
++#include "../include/noirc.h"
++#include "../include/serial.h"
+ 
+ /* forward declarations of game/editor functions */
+ void snake_init(void);
+ void snake_update(void);
+ void snake_draw(void);
+-int snake_handle_key(int key);  /* returns 1 if ESC pressed */
++int snake_handle_key(int key);  /* returns 1 if ESC pressed, 2 if restarted, 0 otherwise */
+ 
+ static int current_mode = MODE_BROWSER;
+ 
+@@ -33,19 +35,64 @@ static int current_mode = MODE_BROWSER;
+  */
+ void kernel_main(void) {
+     init_filesystem();
++    /* Initialize debug serial for logging (captured by QEMU -serial stdio) */
++    serial_init();
+     /* Ensure UI layout matches runtime VGA mode */
+     ui_relayout();
+     ui_draw();
+ 
+     int explorer_sel = ui_get_selected();
+     int game_timer = 0;
+-    const int game_speed = 15; /* frames between snake ticks */
++    const int game_speed = 30; /* frames between snake ticks - increased to decrease speed */
+ 
+     while (1) {
+         int k = read_key();
++        /* Global hotkeys - restricted to browser to prevent disrupting apps */
++        if (k == K_TAB && current_mode == MODE_BROWSER) {
++            ui_toggle_active_panel();
++            ui_draw();
++            continue;
++        }
++
++        if ((k == 'c' || k == 'C') && current_mode == MODE_BROWSER) {
++            /* Open command prompt (Cmd) from browser mode */
++            explorer_sel = shell_open_prompt(explorer_sel, &current_mode);
++            input_reset_modifiers();
++            if (current_mode == MODE_BROWSER) {
++                ui_draw();
++            }
++            continue;
++        }
++
++        if (k == K_ESC) {
++            /* ESC behaviour:
++             * - If in a non-browser mode, return to browser.
++             * - If already in browser and explorer panel active, go up one directory.
++             */
++            if (current_mode != MODE_BROWSER) {
++                current_mode = MODE_BROWSER;
++                input_reset_modifiers();
++                ui_draw();
++                continue;
++            }
++
++            /* In browser mode: if explorer has focus, attempt to go up a directory */
++            if (ui_get_active_panel() == 0) {
++                /* Go to parent directory (fs_chdir("..")) and update UI */
++                fs_chdir("..");
++                input_reset_modifiers();
++                ui_reset_explorer_scroll();
++                ui_set_selected(0);
++                ui_draw();
++                continue;
++            }
++            /* Otherwise, just ensure we're in browser mode */
++            ui_draw();
++            continue;
++        }
+ 
+         /* Debug toggle: 'd' or 'D' shows raw scancode/key overlay */
+-        if (k == 'd' || k == 'D') {
++        if ((k == 'd' || k == 'D') && current_mode == MODE_BROWSER) {
+             input_toggle_debug();
+             ui_draw();
+         }
+@@ -54,13 +101,23 @@ void kernel_main(void) {
+         if (input_debug_enabled()) {
+             int sc = input_get_last_scancode();
+             int lk = input_get_last_key();
++            /* Also emit to serial for headless capture */
++            char sline[64]; int sp = 0;
++            sline[sp++] = 'S'; sline[sp++] = 'C'; sline[sp++] = ':'; 
++            int_to_dec(&sline[sp], sc);
++            while (sline[sp]) sp++;
++            sline[sp++] = ' '; sline[sp++] = 'K'; sline[sp++] = ':';
++            int_to_dec(&sline[sp], lk);
++            while (sline[sp]) sp++;
++            sline[sp++] = '\n'; sline[sp] = '\0';
++            serial_puts(sline);
+             /* simple display: two small fields */
+             char buf[32]; int p = 0;
+             int x = WIDTH - 24;
+             for (int i = 0; i < 20; ++i) vga_putcell(x + i, 0, ' ', ATTR_TITLE);
+             p = 0;
+             /* "SC:NN" */
+-            char t1[16]; int tp = 0;
++            char t1[16];
+             int_to_dec(t1, sc);
+             buf[p++] = 'S'; buf[p++] = 'C'; buf[p++] = ':'; 
+             for (int i = 0; t1[i] && p < (int)sizeof(buf)-1; ++i) buf[p++] = t1[i];
+@@ -76,83 +133,25 @@ void kernel_main(void) {
+         }
+ 
+         if (current_mode == MODE_BROWSER) {
+-            if (k == K_ARROW_UP || k == 'w' || k == 'W') {
+-                explorer_sel = (explorer_sel > 0) ? explorer_sel - 1 : 0;
+-                ui_set_selected(explorer_sel);
+-                ui_draw();
+-            } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
+-                int total = fs_dir_count() + fs_count();
+-                int max = total - 1;
+-                if (max < 0) max = 0;
+-                if (explorer_sel < max) explorer_sel++;
+-                ui_set_selected(explorer_sel);
+-                ui_draw();
+-            } else if (k == K_F1) {
+-                show_restart_screen();
+-            } else if (k == K_F2) {
+-                show_shutdown_screen();
+-            } else if (k == K_F3) {
+-                show_sleep_screen();
+-            } else if (k == K_PAGE_UP) {
+-                ui_scroll_viewer(-3);
+-                ui_draw();
+-            } else if (k == K_PAGE_DOWN) {
+-                ui_scroll_viewer(3);
+-                ui_draw();
+-            } else if (k == '\n' || k == '\r') {
+-                /* Enter: activate selected item directly when possible.
+-                 * - If directory: change into it
+-                 * - If game file: start game
+-                 * - If Noir C file: run via interpreter
+-                 * Otherwise: fall back to shell prompt. */
+-                int sel = ui_get_selected();
+-                int dir_count = fs_dir_count();
+-                int file_count = fs_count();
+-                int total = dir_count + file_count;
+-                if (total > 0 && sel < total) {
+-                    if (sel < dir_count) {
+-                        /* directory */
+-                        struct Dir* d = fs_dir_get(sel);
+-                        if (d) {
+-                            if (fs_chdir(d->name) == FS_OK) {
+-                                ui_reset_explorer_scroll();
+-                                ui_set_selected(0);
+-                                ui_draw();
+-                            }
+-                        }
+-                    } else {
+-                        struct File* f = fs_get(sel - dir_count);
+-                        if (f) {
+-                            if (f->type == FILE_GAME) {
+-                                current_mode = MODE_GAME;
+-                                snake_init();
+-                                snake_draw();
+-                                /* game loop will take over */
+-                            } else if (f->type == FILE_NOIRC) {
+-                                /* run Noir C script */
+-                                noirc_run(f);
+-                            } else {
+-                                /* fallback: open shell prompt */
+-                                explorer_sel = shell_loop(explorer_sel, &current_mode, k);
+-                            }
+-                        }
+-                    }
+-                } else {
+-                    explorer_sel = shell_loop(explorer_sel, &current_mode, k);
+-                }
+-            } else if (k == 'c' || k == 'C') {
+-                /* Open command prompt (Cmd) without changing selection — 'c' key */
+-                explorer_sel = shell_open_prompt(explorer_sel, &current_mode);
+-            }
++            /* Delegate browser/key handling to shell_loop which consumes the key `k`. */
++            explorer_sel = shell_loop(explorer_sel, &current_mode, k);
+         } else if (current_mode == MODE_EDITOR) {
+             editor_handle_key(k, &current_mode);
+             if (current_mode != MODE_EDITOR) ui_draw();
+         } else if (current_mode == MODE_GAME) {
+-            if (snake_handle_key(k)) {
++            int sh = snake_handle_key(k);
++            if (sh == 1) {
+                 /* ESC pressed — return to browser */
+                 current_mode = MODE_BROWSER;
+                 game_timer   = 0;
++                input_reset_modifiers();
+                 ui_draw();
++                continue;
++            } else if (sh == 2) {
++                /* Restart requested — reset timer and redraw immediately */
++                game_timer = 0;
++                snake_draw();
++                continue;
+             } else {
+                 game_timer++;
+                 if (game_timer >= game_speed) {
+@@ -163,8 +162,8 @@ void kernel_main(void) {
+             }
+         }
+ 
+-        /* Small delay to keep input responsive */
+-        for (volatile int i = 0; i < 10000; ++i) {
++        /* Short delay to keep input responsive but prevent tearing/super fast games */
++        for (volatile int i = 0; i < 500000; ++i) {
+             asm volatile("nop");
+         }
+     }
+diff --git a/src/mouse.c b/src/mouse.c
+index 70fdfe8..9cbf282 100644
+--- a/src/mouse.c
++++ b/src/mouse.c
+@@ -1,5 +1,6 @@
+ #include "../include/mouse.h"
+ #include "../include/common.h"
++#include "../include/vga.h"
+ 
+ static mouse_state_t mouse     = {0};
+ static unsigned char mouse_packet[3];
+@@ -107,9 +108,9 @@ void init_mouse(void) {
+     ack = mouse_read(); /* expect 0xFA ACK */
+     (void)ack;
+ 
+-    /* Centre cursor on configured screen size */
+-    mouse.x = WIDTH / 2;
+-    mouse.y = HEIGHT / 2;
++    /* Centre cursor on the runtime screen size */
++    mouse.x = SCREEN_W / 2;
++    mouse.y = SCREEN_H / 2;
+ }
+ 
+ /* ---------- Mouse interrupt handler ---------- */
+diff --git a/src/noirc.c b/src/noirc.c
+index 543152b..14c6dbe 100644
+--- a/src/noirc.c
++++ b/src/noirc.c
+@@ -1,42 +1,43 @@
+-#include "../include/noirc.h"
+-#include "../include/vga.h"
+-#include "../include/input.h"
+-#include "../include/fs.h"
+-#include "../include/util.h"
+-#include "../include/ui.h"
+-
+-/* Minimal Noir C interpreter stub: displays the source and a fake execution
+- * output. This is intentionally lightweight — the full interpreter is a
+- * larger task and can be implemented later. */
+-static void noirc_append_str(char *buf, int *p, const char *s, int max) {
+-    while (*s && *p < max - 1) buf[(*p)++] = *s++;
+-    buf[*p] = '\0';
+-}
+-
+-void noirc_run(struct File* f) {
+-    if (!f) return;
+-    vga_clear();
+-
+-    /* Header */
+-    char title[80]; int tp = 0;
+-    noirc_append_str(title, &tp, "Running: ", sizeof(title));
+-    noirc_append_str(title, &tp, f->name, sizeof(title));
+-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
+-    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], VGA_ATTR(COL_WHITE, COL_BLACK));
+-
+-    /* Show source lines in the main area */
+-    int line = 2;
+-    for (int i = 0; i < f->length && line < HEIGHT - 2; ++i) {
+-        char ch = f->content[i];
+-        if (ch == '\n') { line++; continue; }
+-        if (ch >= 32 && ch <= 126) vga_putcell(1 + ((i % (WIDTH-2))), line, ch, VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+-    }
+-
+-    /* Fake execution output area */
+-    const char* out = "[noirc] Execution finished (stub).";
+-    for (int i = 0; out[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 2, out[i], VGA_ATTR(COL_YELLOW, COL_BLACK));
+-
+-    /* Wait for key and return to UI */
+-    read_key();
+-    ui_draw();
+-}
++#include "../include/noirc.h"
++#include "../include/vga.h"
++#include "../include/input.h"
++#include "../include/fs.h"
++#include "../include/util.h"
++#include "../include/ui.h"
++
++/* Minimal Noir C interpreter stub: displays the source and a fake execution
++ * output. This is intentionally lightweight — the full interpreter is a
++ * larger task and can be implemented later. */
++static void noirc_append_str(char *buf, int *p, const char *s, int max) {
++    while (*s && *p < max - 1) buf[(*p)++] = *s++;
++    buf[*p] = '\0';
++}
++
++void noirc_run(struct File* f) {
++    if (!f) return;
++    vga_clear();
++
++    /* Header */
++    char title[80]; int tp = 0;
++    noirc_append_str(title, &tp, "Running: ", sizeof(title));
++    noirc_append_str(title, &tp, f->name, sizeof(title));
++    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
++    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], VGA_ATTR(COL_WHITE, COL_BLACK));
++
++    /* Show source lines in the main area */
++    int line = 2;
++    for (int i = 0; i < f->length && line < HEIGHT - 2; ++i) {
++        char ch = f->content[i];
++        if (ch == '\n') { line++; continue; }
++        if (ch >= 32 && ch <= 126) vga_putcell(1 + ((i % (WIDTH-2))), line, ch, VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
++    }
++
++    /* Execution */
++  //  const char* out = "[noirc] Execution finished (stub).";
++  const char* out = "xyz";
++  for (int i = 0; out[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 2, out[i], VGA_ATTR(COL_YELLOW, COL_BLACK));
++
++    /* Wait for key and return to UI */
++    wait_key();
++    ui_draw();
++}
+diff --git a/src/shell.c b/src/shell.c
+index 373719e..fa1902d 100644
+--- a/src/shell.c
++++ b/src/shell.c
+@@ -78,7 +78,7 @@ static int cmd_help(const char* args, int* mode, int* explorer_sel) {
+         for (int j = 0; help_text[i][j]; j++)
+             vga_putcell(2 + j, 2 + i, help_text[i][j], 0x0F);
+     }
+-    read_key();
++    wait_key();
+     ui_draw();
+     return 1;
+ }
+@@ -131,7 +131,7 @@ static int cmd_cat(const char* args, int* mode, int* explorer_sel) {
+             for (int j = 0; footer[j]; ++j)
+                 vga_putcell(1 + j, HEIGHT - 1, footer[j], 0x0E);
+ 
+-            read_key();
++            wait_key();
+             ui_draw();
+             return 1;
+         }
+@@ -148,6 +148,52 @@ static int cmd_snake(const char* args, int* mode, int* explorer_sel) {
+     return 1;
+ }
+ 
++/* Interactive keyboard tester: shows raw scancode and translated key. ESC to exit. */
++static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
++    (void)args; (void)mode; (void)explorer_sel;
++    vga_clear();
++    const char* title = "Keyboard Tester - press keys (ESC to exit)";
++    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
++    while (1) {
++        int k = read_key();
++        for (volatile int i = 0; i < 500000; ++i) asm volatile("nop");
++        int sc = input_get_last_scancode();
++        int lk = input_get_last_key();
++        /* Clear status lines */
++        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 2, ' ', 0x07);
++        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 3, ' ', 0x07);
++        char buf[64]; int p = 0;
++        /* Show raw scancode */
++        const char* s1 = "Last scancode: ";
++        for (int i = 0; s1[i] && p < (int)sizeof(buf)-1; ++i) buf[p++] = s1[i];
++        /* append decimal */
++        int v = sc; if (v == 0) { buf[p++] = '0'; }
++        else {
++            char digs[12]; int d = 0;
++            while (v > 0 && d < (int)sizeof(digs)) { digs[d++] = '0' + (v % 10); v /= 10; }
++            for (int i = d - 1; i >= 0; --i) buf[p++] = digs[i];
++        }
++        buf[p] = '\0';
++        for (int i = 0; buf[i]; ++i) vga_putcell(1 + i, 2, buf[i], 0x0F);
++
++        /* Show translated key */
++        char buf2[64]; int q = 0;
++        const char* s2 = "Translated key: ";
++        for (int i = 0; s2[i] && q < (int)sizeof(buf2)-1; ++i) buf2[q++] = s2[i];
++        if (lk >= 32 && lk <= 126) buf2[q++] = (char)lk;
++        else if (lk == K_ESC) { buf2[q++] = 'E'; buf2[q++] = 'S'; buf2[q++] = 'C'; }
++        else if (lk == K_ARROW_UP) { buf2[q++] = '^'; buf2[q++] = 'U'; }
++        else if (lk == K_ARROW_DOWN) { buf2[q++] = 'v'; buf2[q++] = 'D'; }
++        else if (lk == 0) { buf2[q++] = '-'; }
++        buf2[q] = '\0';
++        for (int i = 0; buf2[i]; ++i) vga_putcell(1 + i, 3, buf2[i], 0x0F);
++
++        if (k == K_ESC) break;
++    }
++    ui_draw();
++    return 1;
++}
++
+ static int cmd_clear(const char* args, int* mode, int* explorer_sel) {
+     (void)args; (void)mode; (void)explorer_sel;
+     ui_draw();
+@@ -183,7 +229,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
+         for (int j = 0; info_lines[i][j]; j++)
+             vga_putcell(2 + j, 2 + i, info_lines[i][j], color);
+     }
+-    read_key();
++    wait_key();
+     ui_draw();
+     return 1;
+ }
+@@ -308,6 +354,7 @@ static const shell_command_t commands[] = {
+     {"edit",  "Edit a file",               cmd_edit},
+     {"pwd",   "Print working directory",    cmd_pwd},
+     {"snake", "Play snake game",            cmd_snake},
++    {"kbdtest","Interactive keyboard test", cmd_kbdtest},
+     {"clear", "Redraw screen",             cmd_clear},
+     {"cls",   "Redraw screen",             cmd_clear},
+     {"info",  "System information",         cmd_info},
+@@ -323,9 +370,10 @@ static const shell_command_t commands[] = {
+ 
+ static void show_error(const char* message) {
+     for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+-    for (int i = 0; message[i] && i < STATUS_COLS; i++)
++    for (int i = 0; message[i] && i < STATUS_COLS; i++) {
+         vga_putcell(1 + i, STATUS_ROW, message[i], 0x0C);
+-    read_key();
++    }
++    wait_key();
+ }
+ 
+ static void show_message(const char* message, unsigned char color) {
+@@ -360,8 +408,17 @@ static void add_to_history(const char* cmd) {
+ /* Read a line from the user on STATUS_ROW.
+  * prompt: string displayed before the cursor.
+  * out/outsz: output buffer.
+- * Returns 1 if confirmed with Enter, 0 if aborted with ESC. */
+-static int shell_readline(const char* prompt, char* out, int outsz) {
++ * first_key: if non-zero, process this key before blocking for more input
++ *            (pass 0 for a normal blocking read from the start).
++ * Returns 1 if confirmed with Enter, 0 if aborted with ESC.
++ *
++ * History ring-buffer note: history_count is the total number of commands
++ * ever entered and grows without bound.  The ring stores at most
++ * CMD_HISTORY_SIZE entries; the oldest reachable entry is therefore at
++ * logical position (history_count - CMD_HISTORY_SIZE), clamped to 0.
++ * hist_pos tracks a logical index into [min_hist, history_count].
++ */
++static int shell_readline_preloaded(const char* prompt, char* out, int outsz, int first_key) {
+     /* Clear the status row */
+     for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+ 
+@@ -369,16 +426,19 @@ static int shell_readline(const char* prompt, char* out, int outsz) {
+     int pi = 0;
+     for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
+ 
+-    const int prompt_end = 1 + pi;   /* first editable column */
+-    int cx   = prompt_end;           /* current screen column */
+-    int ipos = 0;                    /* chars in output buffer */
++    const int prompt_end = 1 + pi;
++    int cx   = prompt_end;
++    int ipos = 0;
+ 
+-    /* History navigation position: starts past the last entry so pressing
+-     * UP visits the most recent entry first. */
++    /* hist_pos starts just past the newest entry; UP moves it backwards. */
+     int hist_pos = history_count;
+ 
++    int pk = first_key; /* preloaded key; 0 means none */
++
+     while (1) {
+-        int ch = read_key();
++        int ch;
++        if (pk) { ch = pk; pk = 0; }
++        else ch = wait_key();
+ 
+         if (ch == '\n' || ch == '\r') {
+             out[ipos] = '\0';
+@@ -388,27 +448,35 @@ static int shell_readline(const char* prompt, char* out, int outsz) {
+         if (ch == K_ESC) {
+             out[0] = '\0';
+             ui_draw();
++            input_reset_modifiers();
+             return 0;
+         }
+ 
+         if (ch == '\b') {
+-            if (ipos > 0) {
+-                ipos--;
+-                cx--;
+-                vga_putcell(cx, STATUS_ROW, ' ', 0x07);
++            if (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
++            continue;
++        }
++
++        if (ch == K_TAB) {
++            ui_toggle_active_panel();
++            ui_draw();
++            cx = 1;
++            for (int i = 0; prompt[i] && cx < WIDTH - 1; i++) {
++                vga_putcell(cx++, STATUS_ROW, prompt[i], 0x0E);
++            }
++            for (int i = 0; i < ipos && cx < WIDTH - 1; i++) {
++                vga_putcell(cx++, STATUS_ROW, out[i], 0x0F);
+             }
+             continue;
+         }
+ 
+-        /* History: UP → go back one entry */
+         if (ch == K_ARROW_UP) {
+             if (history_count == 0) continue;
+-            if (hist_pos > 0) hist_pos--;
+-
+-            /* Clear current input visually */
++            /* Oldest reachable logical index in the ring */
++            int min_hist = (history_count > CMD_HISTORY_SIZE)
++                           ? history_count - CMD_HISTORY_SIZE : 0;
++            if (hist_pos > min_hist) hist_pos--;
+             while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+-
+-            /* Load history entry */
+             const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+             for (int i = 0; h[i] && ipos < outsz - 1; i++) {
+                 out[ipos++] = h[i];
+@@ -417,28 +485,22 @@ static int shell_readline(const char* prompt, char* out, int outsz) {
+             continue;
+         }
+ 
+-        /* History: DOWN → go forward; when reaching the end, clear to blank */
+         if (ch == K_ARROW_DOWN) {
+             if (history_count == 0) continue;
+-
+-            /* Clear current input visually */
++            /* Clear current input */
+             while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+-
+             if (hist_pos < history_count) hist_pos++;
+-
+             if (hist_pos < history_count) {
+-                /* Load entry */
+                 const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+                 for (int i = 0; h[i] && ipos < outsz - 1; i++) {
+                     out[ipos++] = h[i];
+                     vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
+                 }
+             }
+-            /* else: hist_pos == history_count → leave blank (already cleared) */
++            /* else hist_pos == history_count → input left blank */
+             continue;
+         }
+ 
+-        /* Regular printable character */
+         if (ch >= 32 && ch <= 126) {
+             if (ipos < outsz - 1 && cx < WIDTH - 1) {
+                 out[ipos++] = (char)ch;
+@@ -447,72 +509,6 @@ static int shell_readline(const char* prompt, char* out, int outsz) {
+         }
+     }
+ }
+-
+-/* Like shell_readline but with a preloaded first key. If first_key is 0,
+- * behaves like shell_readline. Otherwise the first iteration will process
+- * `first_key` as if it was returned by read_key(), then continue reading.
+- */
+-static int shell_readline_preloaded(const char* prompt, char* out, int outsz, int first_key) {
+-    /* Clear the status row */
+-    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+-
+-    /* Draw prompt */
+-    int pi = 0;
+-    for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
+-
+-    const int prompt_end = 1 + pi;
+-    int cx   = prompt_end;
+-    int ipos = 0;
+-    int hist_pos = history_count;
+-
+-    int pk = first_key; /* preloaded key; 0 means none */
+-
+-    while (1) {
+-        int ch;
+-        if (pk) { ch = pk; pk = 0; }
+-        else ch = read_key();
+-
+-        if (ch == '\n' || ch == '\r') {
+-            out[ipos] = '\0';
+-            return 1;
+-        }
+-
+-        if (ch == K_ESC) {
+-            out[0] = '\0';
+-            ui_draw();
+-            return 0;
+-        }
+-
+-        if (ch == '\b') {
+-            if (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+-            continue;
+-        }
+-
+-        if (ch == K_ARROW_UP) {
+-            if (history_count == 0) continue;
+-            if (hist_pos > 0) hist_pos--;
+-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+-            const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+-            for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+-            continue;
+-        }
+-
+-        if (ch == K_ARROW_DOWN) {
+-            if (history_count == 0) continue;
+-            while (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+-            if (hist_pos < history_count) hist_pos++;
+-            if (hist_pos < history_count) {
+-                const char* h = cmd_history[hist_pos % CMD_HISTORY_SIZE];
+-                for (int i = 0; h[i] && ipos < outsz - 1; i++) { out[ipos++] = h[i]; vga_putcell(cx++, STATUS_ROW, h[i], 0x0F); }
+-            }
+-            continue;
+-        }
+-
+-        if (ch >= 32 && ch <= 126) {
+-            if (ipos < outsz - 1 && cx < WIDTH - 1) { out[ipos++] = (char)ch; vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F); }
+-        }
+-    }
+-}
+ /* ================================================================
+  * Command dispatch
+  * ================================================================ */
+@@ -561,35 +557,86 @@ int shell_loop(int explorer_sel_in, int* mode, int first_key) {
+     /* Consume Fn keys — already handled by ui_handle_key */
+     if (k == K_F1 || k == K_F2 || k == K_F3) {
+         ui_draw();
++        input_reset_modifiers();
+         return ui_get_selected();
+     }
+ 
+-    int total = fs_dir_count() + fs_count();
+-
+     if (k == K_ARROW_UP || k == 'w' || k == 'W') {
+-        int sel = ui_get_selected();
+-        if (sel > 0) sel--;
+-        ui_set_selected(sel);
++        if (ui_get_active_panel() == 0) {
++            int sel = ui_get_selected();
++            int total = fs_dir_count() + fs_count();
++            if (total <= 0) sel = 0;
++            else sel = (sel > 0) ? sel - 1 : (total - 1);
++            ui_set_selected(sel);
++        } else {
++            ui_scroll_viewer(-1);
++        }
+         ui_draw();
++        input_reset_modifiers();
+     } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
+-        int sel = ui_get_selected();
+-        int max = (total > 0) ? total - 1 : 0;
+-        if (sel < max) sel++;
+-        ui_set_selected(sel);
++        if (ui_get_active_panel() == 0) {
++            int sel = ui_get_selected();
++            int total = fs_dir_count() + fs_count();
++            if (total <= 0) sel = 0;
++            else { int max = total - 1; sel = (sel < max) ? sel + 1 : 0; }
++            ui_set_selected(sel);
++        } else {
++            ui_scroll_viewer(1);
++        }
+         ui_draw();
++        input_reset_modifiers();
+     } else if (k == K_PAGE_UP) {
+         ui_scroll_viewer(-3);
+         ui_draw();
++        input_reset_modifiers();
+     } else if (k == K_PAGE_DOWN) {
+         ui_scroll_viewer(3);
+         ui_draw();
++        input_reset_modifiers();
+     } else if (k == '\n' || k == '\r') {
+-        char input[MAX_CMD_LEN];
+-        if (shell_readline_preloaded("cmd> ", input, sizeof(input), 0) && input[0]) {
+-            add_to_history(input);
+-            execute_command(input, mode, &explorer_sel);
++        if (ui_get_active_panel() == 0) {
++            int sel = ui_get_selected();
++            int dir_count = fs_dir_count();
++            if (sel < dir_count) {
++                struct Dir* d = fs_dir_get(sel);
++                char cmd[MAX_CMD_LEN];
++                int p = 0;
++                const char* c = "cd ";
++                while (*c) cmd[p++] = *c++;
++                for (int i = 0; d->name[i] && p < MAX_CMD_LEN - 1; i++)
++                    cmd[p++] = d->name[i];
++                cmd[p] = '\0';
++                execute_command(cmd, mode, &explorer_sel);
++            } else {
++                struct File* f = fs_get(sel - dir_count);
++                int len = kstrlen(f->name);
++                if (f->type == FILE_NOIRC || (len >= 3 && kstrcmp(f->name + len - 3, ".nc") == 0)) {
++                    char cmd[MAX_CMD_LEN];
++                    int p = 0;
++                    const char* c = "run ";
++                    while (*c) cmd[p++] = *c++;
++                    for (int i = 0; f->name[i] && p < MAX_CMD_LEN - 1; i++)
++                        cmd[p++] = f->name[i];
++                    cmd[p] = '\0';
++                    execute_command(cmd, mode, &explorer_sel);
++                } else if (f->type == FILE_GAME) {
++                    execute_command("snake", mode, &explorer_sel);
++                } else {
++                    char cmd[MAX_CMD_LEN];
++                    int p = 0;
++                    const char* c = "edit ";
++                    while (*c) cmd[p++] = *c++;
++                    for (int i = 0; f->name[i] && p < MAX_CMD_LEN - 1; i++)
++                        cmd[p++] = f->name[i];
++                    cmd[p] = '\0';
++                    execute_command(cmd, mode, &explorer_sel);
++                }
++            }
+         }
+-        ui_draw();
++        if (*mode == MODE_BROWSER) {
++            ui_draw();
++        }
++        input_reset_modifiers();
+     }
+ 
+     return ui_get_selected();
+diff --git a/src/start.S b/src/start.S
+index 048dcd9..991811b 100644
+Binary files a/src/start.S and b/src/start.S differ
+diff --git a/src/ui.c b/src/ui.c
+index c800d8c..67329db 100644
+--- a/src/ui.c
++++ b/src/ui.c
+@@ -19,18 +19,6 @@ static int explorer_scroll = 0;
+ /* 0 = explorer panel has focus, 1 = viewer panel has focus */
+ static int active_panel = 0;
+ 
+-/* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
+-void ui_relayout(void) {
+-    /* Proportions derived from original 80x25 layout */
+-    int ew = SCREEN_W * 32 / 80; if (ew < 10) ew = 10;
+-    int vw = SCREEN_W - ew - 1; if (vw < 10) vw = SCREEN_W - ew;
+-
+-    explorer_win.x = 0; explorer_win.y = 1; explorer_win.w = ew; explorer_win.h = SCREEN_H - 4;
+-    viewer_win.x = explorer_win.w + 1; viewer_win.y = 1; viewer_win.w = vw; viewer_win.h = (SCREEN_H - 4) * 3 / 5;
+-    control_win.x = viewer_win.x; control_win.y = viewer_win.y + viewer_win.h; control_win.w = viewer_win.w; control_win.h = (SCREEN_H - 4) - viewer_win.h;
+-    status_win.x = 0; status_win.y = SCREEN_H - 3; status_win.w = SCREEN_W; status_win.h = 3;
+-}
+-
+ /* Button definitions for clickable controls */
+ typedef struct {
+     int x, y, w, h;
+@@ -41,19 +29,33 @@ typedef struct {
+     void (*callback)(void);
+ } ui_button_t;
+ 
+-/* Power control buttons */
++/* Power control buttons — declared here so ui_relayout() can reset the flag */
+ static ui_button_t power_buttons[3];
+ static int power_buttons_initialized = 0;
+ 
+ /* Button press duration */
+ #define UI_PRESS_TICKS 8
+ 
+-/* Forward declaration */
++/* Forward declarations */
+ static void init_power_buttons(void);
+-/* Forward declarations for internal draw helpers */
+ static void draw_explorer_listing(int dir_count, int file_count, int total);
+ static void draw_viewer_content(int dir_count);
+ 
++/* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
++void ui_relayout(void) {
++    /* Proportions derived from original 80x25 layout */
++    int ew = SCREEN_W * 32 / 80; if (ew < 10) ew = 10;
++    int vw = SCREEN_W - ew - 1; if (vw < 10) vw = SCREEN_W - ew;
++
++    explorer_win.x = 0; explorer_win.y = 1; explorer_win.w = ew; explorer_win.h = SCREEN_H - 4;
++    viewer_win.x = explorer_win.w + 1; viewer_win.y = 1; viewer_win.w = vw; viewer_win.h = (SCREEN_H - 4) * 3 / 5;
++    control_win.x = viewer_win.x; control_win.y = viewer_win.y + viewer_win.h; control_win.w = viewer_win.w; control_win.h = (SCREEN_H - 4) - viewer_win.h;
++    status_win.x = 0; status_win.y = SCREEN_H - 3; status_win.w = SCREEN_W; status_win.h = 3;
++
++    /* Force button positions to be recalculated against the new window layout */
++    power_buttons_initialized = 0;
++}
++
+ /* -------- tiny helpers (no stdio) -------- */
+ static void append_str(char *buf, int *p, const char *s, int max) {
+     while (*s && *p < max - 1) buf[(*p)++] = *s++;
+@@ -210,14 +212,6 @@ void ui_handle_mouse_click(int x, int y, int button) {
+     }
+ }
+ 
+-/* small helper: compute pressed attr from original attr by inverting bg to bright background.
+-   original_attr examples: 0x2F (bg=2 fg=F) -> pressed_attr = 0xF2 */
+-static unsigned char pressed_attr_from(unsigned char orig) {
+-    unsigned char bg = (orig >> 4) & 0x0F;
+-    unsigned char pressed = (0xF << 4) | (bg & 0x0F);
+-    return pressed;
+-}
+-
+ /* -------- Draw Controls window (buttons with colored backgrounds) -------- */
+ static void init_power_buttons(void) {
+     if (power_buttons_initialized) return;
+@@ -313,6 +307,7 @@ static void draw_controls_window(void) {
+ /* -------- Main draw function (dirs + files + controls) -------- */
+ void ui_draw(void) {
+     vga_clear();
++    
+     /* Title */
+     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
+     const char* title = "NoirOS";
+@@ -400,6 +395,7 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
+ }
+     /* ---- explorer/viewer implementations ---- */
+     static void draw_explorer_listing(int dir_count, int file_count, int total) {
++        (void)file_count; /* count available from total - dir_count; kept for API symmetry */
+         int e_lines = explorer_win.h - 2;
+         for (int row = 0; row < e_lines; ++row) {
+             int idx = explorer_scroll + row;
+@@ -548,8 +544,14 @@ void show_restart_screen(void) {
+     for (volatile int i = 0; i < 10000000; i++);
+ 
+     /* Jump to kernel load address — matches linker.ld ENTRY address */
+-    void (*restart_kernel)(void) = (void (*)(void))0x100000;
+-    restart_kernel();
++    /* Real reboot via 8042 keyboard controller */
++    for (int i = 0; i < 100; i++) {
++        unsigned char r;
++        __asm__ volatile ("inb $0x64, %0" : "=a"(r));
++        if ((r & 0x02) == 0) break;
++    }
++    __asm__ volatile ("outb %0, $0x64" : : "a"((unsigned char)0xFE));
++    while (1) { __asm__ volatile ("cli; hlt"); }
+ }
+ 
+ /* -------- Shutdown screen -------- */
+@@ -624,6 +626,10 @@ void show_shutdown_screen(void) {
+     draw_centered(by2 + 2, "Safe to power off now", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY));
+     for (volatile int i = 0; i < 20000000; i++);
+ 
++    /* QEMU / Bochs / VirtualBox shutdown via ACPI/APM ports */
++    __asm__ volatile ("outw %%ax, %%dx" : : "a"((unsigned short)0x2000), "d"((unsigned short)0x604));
++    __asm__ volatile ("outw %%ax, %%dx" : : "a"((unsigned short)0x2000), "d"((unsigned short)0xB004));
++
+     /* Halt: disable interrupts and spin — correct x86 shutdown for bare metal/QEMU */
+     while (1) { __asm__ volatile ("cli; hlt"); }
+ }
+diff --git a/src/vga.c b/src/vga.c
+index 7c3de40..ef10123 100644
+--- a/src/vga.c
++++ b/src/vga.c
+@@ -23,7 +23,13 @@ static u8 default_attr = 0x07;
+ void vga_putcell(int x, int y, char ch, u8 attr) {
+     /* Use WIDTH/HEIGHT constants — never hardcode 80 or 25 here. */
+     if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return;
+-    vga[y * SCREEN_W + x] = ((u16)attr << 8) | (u8)ch;
++    u16 new_val = ((u16)attr << 8) | (u8)ch;
++    // Only perform the MMIO write if the cell is actually changing.
++    // This prevents dirtying the VGA page in emulators and reduces "snow" on bare metal,
++    // essentially eliminating all screen flickering!
++    if (vga[y * SCREEN_W + x] != new_val) {
++        vga[y * SCREEN_W + x] = new_val;
++    }
+ }
+ 
+ /**
+diff --git a/src/viewer.c b/src/viewer.c
+index aac7f69..13c7ebd 100644
+--- a/src/viewer.c
++++ b/src/viewer.c
+@@ -8,6 +8,16 @@
+  * Does not allocate memory; writes directly into the provided window using
+  * draw_text_in_win. `scroll` skips that many output lines.
+  */
++
++/* Emit one visual line subject to scroll. `lineno` is the sequential output
++ * line index; if it is before `scroll` the line is skipped, otherwise it is
++ * drawn at position (lineno - scroll) inside the window. */
++static void emit_line(int x, int y, int w, int h, int scroll,
++                      const char* s, u8 attr, int lineno) {
++    if (lineno < scroll) return;
++    draw_text_in_win(x, y, w, h, 0, lineno - scroll, s, attr);
++}
++
+ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+     if (!f) {
+         draw_text_in_win(x, y, w, h, 0, 0, "(no file)", ATTR_NORMAL);
+@@ -16,17 +26,6 @@ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+ 
+     const char* p = f->content;
+     char line[512];
+-    int out_line = 0;
+-    int written = 0;
+-
+-    /* Helper to emit one visual line (subject to scroll) */
+-    void emit_line(const char* s, u8 attr, int lineno) {
+-        /* lineno is the sequential output line index */
+-        if (lineno < scroll) return;
+-        /* Use draw_text_in_win to place at (out_line - scroll) */
+-        draw_text_in_win(x, y, w, h, 0, lineno - scroll, s, attr);
+-    }
+-
+     int lineno = 0;
+ 
+     if (f->type == FILE_HTML) {
+@@ -39,14 +38,14 @@ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+             if (in_tag) { p++; continue; }
+             if (*p == '\n' || li >= w - 3) {
+                 line[li] = '\0';
+-                emit_line(line, ATTR_FILE_HTML, lineno++);
++                emit_line(x, y, w, h, scroll, line, ATTR_FILE_HTML, lineno++);
+                 li = 0;
+                 if (*p == '\n') p++;
+                 continue;
+             }
+             line[li++] = *p++;
+         }
+-        if (li > 0) { line[li] = '\0'; emit_line(line, ATTR_FILE_HTML, lineno++); }
++        if (li > 0) { line[li] = '\0'; emit_line(x, y, w, h, scroll, line, ATTR_FILE_HTML, lineno++); }
+         return;
+     }
+ 
+@@ -62,8 +61,8 @@ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+             while (*p && *p != '\n' && li < w - 3) line[li++] = *p++;
+             if (*p == '\n') p++;
+             line[li] = '\0';
+-            if (hashes > 0) emit_line(line, ATTR_FILE_MD, lineno++);
+-            else emit_line(line, ATTR_FILE_TEXT, lineno++);
++            if (hashes > 0) emit_line(x, y, w, h, scroll, line, ATTR_FILE_MD, lineno++);
++            else emit_line(x, y, w, h, scroll, line, ATTR_FILE_TEXT, lineno++);
+         }
+         return;
+     }
+@@ -75,7 +74,7 @@ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+             while (*p && *p != '\n' && li < w - 3) line[li++] = *p++;
+             if (*p == '\n') p++;
+             line[li] = '\0';
+-            emit_line(line, ATTR_FILE_NOIRC, lineno++);
++            emit_line(x, y, w, h, scroll, line, ATTR_FILE_NOIRC, lineno++);
+         }
+         return;
+     }
+@@ -86,6 +85,6 @@ void viewer_draw(int x, int y, int w, int h, struct File* f, int scroll) {
+         while (*p && *p != '\n' && li < w - 3) line[li++] = *p++;
+         if (*p == '\n') p++;
+         line[li] = '\0';
+-        emit_line(line, ATTR_FILE_TEXT, lineno++);
++        emit_line(x, y, w, h, scroll, line, ATTR_FILE_TEXT, lineno++);
+     }
+ }

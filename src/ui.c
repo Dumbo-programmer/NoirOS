@@ -19,18 +19,6 @@ static int explorer_scroll = 0;
 /* 0 = explorer panel has focus, 1 = viewer panel has focus */
 static int active_panel = 0;
 
-/* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
-void ui_relayout(void) {
-    /* Proportions derived from original 80x25 layout */
-    int ew = SCREEN_W * 32 / 80; if (ew < 10) ew = 10;
-    int vw = SCREEN_W - ew - 1; if (vw < 10) vw = SCREEN_W - ew;
-
-    explorer_win.x = 0; explorer_win.y = 1; explorer_win.w = ew; explorer_win.h = SCREEN_H - 4;
-    viewer_win.x = explorer_win.w + 1; viewer_win.y = 1; viewer_win.w = vw; viewer_win.h = (SCREEN_H - 4) * 3 / 5;
-    control_win.x = viewer_win.x; control_win.y = viewer_win.y + viewer_win.h; control_win.w = viewer_win.w; control_win.h = (SCREEN_H - 4) - viewer_win.h;
-    status_win.x = 0; status_win.y = SCREEN_H - 3; status_win.w = SCREEN_W; status_win.h = 3;
-}
-
 /* Button definitions for clickable controls */
 typedef struct {
     int x, y, w, h;
@@ -41,18 +29,32 @@ typedef struct {
     void (*callback)(void);
 } ui_button_t;
 
-/* Power control buttons */
+/* Power control buttons — declared here so ui_relayout() can reset the flag */
 static ui_button_t power_buttons[3];
 static int power_buttons_initialized = 0;
 
 /* Button press duration */
 #define UI_PRESS_TICKS 8
 
-/* Forward declaration */
+/* Forward declarations */
 static void init_power_buttons(void);
-/* Forward declarations for internal draw helpers */
 static void draw_explorer_listing(int dir_count, int file_count, int total);
 static void draw_viewer_content(int dir_count);
+
+/* Set layout based on current runtime screen size (SCREEN_W/SCREEN_H). */
+void ui_relayout(void) {
+    /* Proportions derived from original 80x25 layout */
+    int ew = SCREEN_W * 32 / 80; if (ew < 10) ew = 10;
+    int vw = SCREEN_W - ew - 1; if (vw < 10) vw = SCREEN_W - ew;
+
+    explorer_win.x = 0; explorer_win.y = 1; explorer_win.w = ew; explorer_win.h = SCREEN_H - 4;
+    viewer_win.x = explorer_win.w + 1; viewer_win.y = 1; viewer_win.w = vw; viewer_win.h = (SCREEN_H - 4) * 3 / 5;
+    control_win.x = viewer_win.x; control_win.y = viewer_win.y + viewer_win.h; control_win.w = viewer_win.w; control_win.h = (SCREEN_H - 4) - viewer_win.h;
+    status_win.x = 0; status_win.y = SCREEN_H - 3; status_win.w = SCREEN_W; status_win.h = 3;
+
+    /* Force button positions to be recalculated against the new window layout */
+    power_buttons_initialized = 0;
+}
 
 /* -------- tiny helpers (no stdio) -------- */
 static void append_str(char *buf, int *p, const char *s, int max) {
@@ -208,14 +210,6 @@ void ui_handle_mouse_click(int x, int y, int button) {
         ui_draw(); /* Refresh to show scroll */
         return;
     }
-}
-
-/* small helper: compute pressed attr from original attr by inverting bg to bright background.
-   original_attr examples: 0x2F (bg=2 fg=F) -> pressed_attr = 0xF2 */
-static unsigned char pressed_attr_from(unsigned char orig) {
-    unsigned char bg = (orig >> 4) & 0x0F;
-    unsigned char pressed = (0xF << 4) | (bg & 0x0F);
-    return pressed;
 }
 
 /* -------- Draw Controls window (buttons with colored backgrounds) -------- */
@@ -400,6 +394,7 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
 }
     /* ---- explorer/viewer implementations ---- */
     static void draw_explorer_listing(int dir_count, int file_count, int total) {
+        (void)file_count; /* count available from total - dir_count; kept for API symmetry */
         int e_lines = explorer_win.h - 2;
         for (int row = 0; row < e_lines; ++row) {
             int idx = explorer_scroll + row;
@@ -548,8 +543,14 @@ void show_restart_screen(void) {
     for (volatile int i = 0; i < 10000000; i++);
 
     /* Jump to kernel load address — matches linker.ld ENTRY address */
-    void (*restart_kernel)(void) = (void (*)(void))0x100000;
-    restart_kernel();
+    /* Real reboot via 8042 keyboard controller */
+    for (int i = 0; i < 100; i++) {
+        unsigned char r;
+        __asm__ volatile ("inb $0x64, %0" : "=a"(r));
+        if ((r & 0x02) == 0) break;
+    }
+    __asm__ volatile ("outb %0, $0x64" : : "a"((unsigned char)0xFE));
+    while (1) { __asm__ volatile ("cli; hlt"); }
 }
 
 /* -------- Shutdown screen -------- */
@@ -623,6 +624,10 @@ void show_shutdown_screen(void) {
     draw_box(bx2, by2, 30, 5, " GOODBYE! ", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY), ATTR_NORMAL, VGA_ATTR(COL_BLACK, COL_BLACK));
     draw_centered(by2 + 2, "Safe to power off now", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY));
     for (volatile int i = 0; i < 20000000; i++);
+
+    /* QEMU / Bochs / VirtualBox shutdown via ACPI/APM ports */
+    __asm__ volatile ("outw %%ax, %%dx" : : "a"((unsigned short)0x2000), "d"((unsigned short)0x604));
+    __asm__ volatile ("outw %%ax, %%dx" : : "a"((unsigned short)0x2000), "d"((unsigned short)0xB004));
 
     /* Halt: disable interrupts and spin — correct x86 shutdown for bare metal/QEMU */
     while (1) { __asm__ volatile ("cli; hlt"); }

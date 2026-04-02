@@ -19,6 +19,9 @@ struct SnakeGame {
     struct { int x, y; } food;
     int score;
     int game_over;
+    int needs_redraw;
+    struct { int x, y; } old_tail;
+    int has_old_tail;
 } snake_game;
 
 /* ---- Food placement ---- */
@@ -48,10 +51,6 @@ static void place_food(void) {
             return;
         }
     }
-        /**
-         * Advance the snake game state by one tick: move the snake,
-         * check collisions, handle food consumption and growth.
-         */
     /* Exhaustive fallback (snake fills nearly the whole board) */
     for (int fy = 0; fy < GAME_H; ++fy)
         for (int fx = 0; fx < GAME_W; ++fx)
@@ -61,9 +60,6 @@ static void place_food(void) {
                 return;
             }
     /* No free cell — game is effectively won; keep food where it is */
-            /**
-             * Render the current snake game state to the screen.
-             */
 }
 
 /* ---- Public API ---- */
@@ -80,16 +76,22 @@ void snake_init(void) {
     snake_game.dy        = 0;
     snake_game.score     = 0;
     snake_game.game_over = 0;
+    snake_game.needs_redraw = 1;
+    snake_game.has_old_tail = 0;
     place_food();
 }
 
 /**
- * Handle a key event while in the snake game.
- * Updates direction or ignores invalid reversals.
- * @param k key value from read_key()
+ * Advance the snake game state by one tick: move the snake,
+ * check collisions, handle food consumption and growth.
  */
 void snake_update(void) {
     if (snake_game.game_over) return;
+
+    /* Save old tail for erasing */
+    snake_game.old_tail.x = snake_game.body[snake_game.length - 1].x;
+    snake_game.old_tail.y = snake_game.body[snake_game.length - 1].y;
+    snake_game.has_old_tail = 1;
 
     /* Shift body segments back */
     for (int i = snake_game.length - 1; i > 0; --i)
@@ -125,18 +127,30 @@ void snake_update(void) {
     }
 }
 
+/**
+ * Render the current snake game state to the screen.
+ */
 void snake_draw(void) {
-    vga_clear();
+    if (snake_game.needs_redraw) {
+        vga_clear();
 
-    /* Title bar */
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x2F);
-    const char* title = "NoirOS Snake  Arrow keys to move  ESC to exit";
-    for (int i = 0; title[i] && i < WIDTH - 2; ++i)
-        vga_putcell(1 + i, 0, title[i], 0x2F);
+        /* Title bar */
+        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x2F);
+        const char* title = "NoirOS Snake  Arrow keys to move  R restart  ESC to exit";
+        for (int i = 0; title[i] && i < WIDTH - 2; ++i)
+            vga_putcell(1 + i, 0, title[i], 0x2F);
 
-    /* Game border — positioned using named constants, not bare magic numbers */
-    draw_box(GAME_ORIGIN_X - 1, GAME_ORIGIN_Y - 1,
-             GAME_W + 2, GAME_H + 2, "", 0x0E, 0x80, 0x00);
+        /* Game border — positioned using named constants, not bare magic numbers */
+        draw_box(GAME_ORIGIN_X - 1, GAME_ORIGIN_Y - 1,
+                 GAME_W + 2, GAME_H + 2, "", 0x0E, 0x80, 0x00);
+        snake_game.needs_redraw = 0;
+    }
+
+    if (snake_game.has_old_tail) {
+        vga_putcell(GAME_ORIGIN_X + snake_game.old_tail.x,
+                    GAME_ORIGIN_Y + snake_game.old_tail.y, ' ', 0x00);
+        snake_game.has_old_tail = 0;
+    }
 
     /* Snake body */
     for (int i = 0; i < snake_game.length; ++i) {
@@ -170,16 +184,27 @@ void snake_draw(void) {
 
     /* Game over overlay */
     if (snake_game.game_over) {
-        const char* msg = "GAME OVER!  Press ESC to exit";
+        const char* msg = "GAME OVER!  R to restart  ESC to exit";
         int start_x = (WIDTH - kstrlen(msg)) / 2;
         for (int i = 0; msg[i]; ++i)
             vga_putcell(start_x + i, HEIGHT / 2, msg[i], 0x4F);
     }
 }
 
-/* Returns 1 if ESC was pressed (caller should switch back to MODE_BROWSER). */
+/**
+ * Handle a key event while in the snake game.
+ * Updates direction or ignores invalid reversals.
+ * Returns 1 if the caller should switch back to MODE_BROWSER (ESC pressed).
+ * @param k key value from read_key()
+ */
 int snake_handle_key(int k) {
     if (k == K_ESC) return 1;   /* signal caller to exit game mode */
+    /* R or r: restart the game at any time (including after game over) */
+    if (k == 'r' || k == 'R') {
+        snake_init();
+        snake_draw();
+        return 2; /* restarted */
+    }
     if (snake_game.game_over) return 0;
     /* Prevent reversing directly into the body */
     if (k == K_ARROW_UP    && snake_game.dy == 0) { snake_game.dx = 0; snake_game.dy = -1; }

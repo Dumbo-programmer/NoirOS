@@ -13,6 +13,27 @@ int SCREEN_H = HEIGHT;
 static int cursor_x = 0, cursor_y = 0;
 static u8 default_attr = 0x07;
 
+#define MAX_S_W 200
+#define MAX_S_H 100
+static u16 backbuffer[MAX_S_W * MAX_S_H];
+static u16 frontbuffer[MAX_S_W * MAX_S_H];
+
+/**
+ * Update the VGA memory from the backbuffer. Should be called periodically.
+ */
+void vga_flush(void) {
+    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return;
+    for (int y = 0; y < SCREEN_H; ++y) {
+        for (int x = 0; x < SCREEN_W; ++x) {
+            int idx = y * SCREEN_W + x;
+            if (backbuffer[idx] != frontbuffer[idx]) {
+                vga[idx] = backbuffer[idx];
+                frontbuffer[idx] = backbuffer[idx];
+            }
+        }
+    }
+}
+
 /**
  * Write a character cell to the VGA text buffer at (x,y).
  * @param x column (0..WIDTH-1)
@@ -21,9 +42,9 @@ static u8 default_attr = 0x07;
  * @param attr attribute byte (foreground/background)
  */
 void vga_putcell(int x, int y, char ch, u8 attr) {
-    /* Use WIDTH/HEIGHT constants — never hardcode 80 or 25 here. */
     if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return;
-    vga[y * SCREEN_W + x] = ((u16)attr << 8) | (u8)ch;
+    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return;
+    backbuffer[y * SCREEN_W + x] = ((u16)attr << 8) | (u8)ch;
 }
 
 /**
@@ -52,17 +73,18 @@ void term_putc(char c) {
     cursor_x++;
     if (cursor_x >= SCREEN_W) { cursor_x = 0; cursor_y++; }
 check_scroll:
-    /* Scroll up one line if we fall off the bottom instead of clamping.
+/* Scroll up one line if we fall off the bottom instead of clamping.
      * Clamping silently overwrites the last line — scrolling is correct. */
     if (cursor_y >= SCREEN_H) {
         /* Shift all rows up by one */
         for (int y = 1; y < SCREEN_H; ++y)
             for (int x = 0; x < SCREEN_W; ++x)
-                vga[((y - 1) * SCREEN_W) + x] = vga[(y * SCREEN_W) + x];
+                backbuffer[((y - 1) * SCREEN_W) + x] = backbuffer[(y * SCREEN_W) + x];
         /* Clear the newly exposed bottom row */
         for (int x = 0; x < SCREEN_W; ++x)
             vga_putcell(x, SCREEN_H - 1, ' ', default_attr);
         cursor_y = SCREEN_H - 1;
+        vga_flush();
     }
 }
 
@@ -121,7 +143,8 @@ void draw_text_in_win(int x, int y, int w, int h,
  */
 char vga_getcell_char(int x, int y) {
     if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return ' ';
-    return (char)(vga[y * SCREEN_W + x] & 0xFF);
+    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return ' ';
+    return (char)(backbuffer[y * SCREEN_W + x] & 0xFF);
 }
 
 /**
@@ -130,7 +153,8 @@ char vga_getcell_char(int x, int y) {
  */
 unsigned char vga_getcell_attr(int x, int y) {
     if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return 0x07;
-    return (unsigned char)((vga[y * SCREEN_W + x] >> 8) & 0xFF);
+    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return 0x07;
+    return (unsigned char)((backbuffer[y * SCREEN_W + x] >> 8) & 0xFF);
 }
 
 /* Set runtime screen mode; clears screen and clamps cursor */

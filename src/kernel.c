@@ -9,12 +9,14 @@
 #include "../include/mode.h"
 #include "../include/editor.h"
 #include "../include/game_snake.h"
+#include "../include/noirc.h"
+#include "../include/serial.h"
 
 /* forward declarations of game/editor functions */
 void snake_init(void);
 void snake_update(void);
 void snake_draw(void);
-int snake_handle_key(int key);  /* returns 1 if ESC pressed */
+int snake_handle_key(int key);  /* returns 1 if ESC pressed, 2 if restarted, 0 otherwise */
 
 static int current_mode = MODE_BROWSER;
 
@@ -33,19 +35,64 @@ static int current_mode = MODE_BROWSER;
  */
 void kernel_main(void) {
     init_filesystem();
+    /* Initialize debug serial for logging (captured by QEMU -serial stdio) */
+    serial_init();
     /* Ensure UI layout matches runtime VGA mode */
     ui_relayout();
     ui_draw();
 
     int explorer_sel = ui_get_selected();
     int game_timer = 0;
-    const int game_speed = 15; /* frames between snake ticks */
+    const int game_speed = 30; /* frames between snake ticks - increased to decrease speed */
 
     while (1) {
         int k = read_key();
+        /* Global hotkeys - restricted to browser to prevent disrupting apps */
+        if (k == K_TAB && current_mode == MODE_BROWSER) {
+            ui_toggle_active_panel();
+            ui_draw();
+            continue;
+        }
+
+        if ((k == 'c' || k == 'C') && current_mode == MODE_BROWSER) {
+            /* Open command prompt (Cmd) from browser mode */
+            explorer_sel = shell_open_prompt(explorer_sel, &current_mode);
+            input_reset_modifiers();
+            if (current_mode == MODE_BROWSER) {
+                ui_draw();
+            }
+            continue;
+        }
+
+        if (k == K_ESC) {
+            /* ESC behaviour:
+             * - If in a non-browser mode, return to browser.
+             * - If already in browser and explorer panel active, go up one directory.
+             */
+            if (current_mode != MODE_BROWSER) {
+                current_mode = MODE_BROWSER;
+                input_reset_modifiers();
+                ui_draw();
+                continue;
+            }
+
+            /* In browser mode: if explorer has focus, attempt to go up a directory */
+            if (ui_get_active_panel() == 0) {
+                /* Go to parent directory (fs_chdir("..")) and update UI */
+                fs_chdir("..");
+                input_reset_modifiers();
+                ui_reset_explorer_scroll();
+                ui_set_selected(0);
+                ui_draw();
+                continue;
+            }
+            /* Otherwise, just ensure we're in browser mode */
+            ui_draw();
+            continue;
+        }
 
         /* Debug toggle: 'd' or 'D' shows raw scancode/key overlay */
-        if (k == 'd' || k == 'D') {
+        if ((k == 'd' || k == 'D') && current_mode == MODE_BROWSER) {
             input_toggle_debug();
             ui_draw();
         }
@@ -54,13 +101,23 @@ void kernel_main(void) {
         if (input_debug_enabled()) {
             int sc = input_get_last_scancode();
             int lk = input_get_last_key();
+            /* Also emit to serial for headless capture */
+            char sline[64]; int sp = 0;
+            sline[sp++] = 'S'; sline[sp++] = 'C'; sline[sp++] = ':'; 
+            int_to_dec(&sline[sp], sc);
+            while (sline[sp]) sp++;
+            sline[sp++] = ' '; sline[sp++] = 'K'; sline[sp++] = ':';
+            int_to_dec(&sline[sp], lk);
+            while (sline[sp]) sp++;
+            sline[sp++] = '\n'; sline[sp] = '\0';
+            serial_puts(sline);
             /* simple display: two small fields */
             char buf[32]; int p = 0;
             int x = WIDTH - 24;
             for (int i = 0; i < 20; ++i) vga_putcell(x + i, 0, ' ', ATTR_TITLE);
             p = 0;
             /* "SC:NN" */
-            char t1[16]; int tp = 0;
+            char t1[16];
             int_to_dec(t1, sc);
             buf[p++] = 'S'; buf[p++] = 'C'; buf[p++] = ':'; 
             for (int i = 0; t1[i] && p < (int)sizeof(buf)-1; ++i) buf[p++] = t1[i];
@@ -76,83 +133,25 @@ void kernel_main(void) {
         }
 
         if (current_mode == MODE_BROWSER) {
-            if (k == K_ARROW_UP || k == 'w' || k == 'W') {
-                explorer_sel = (explorer_sel > 0) ? explorer_sel - 1 : 0;
-                ui_set_selected(explorer_sel);
-                ui_draw();
-            } else if (k == K_ARROW_DOWN || k == 's' || k == 'S') {
-                int total = fs_dir_count() + fs_count();
-                int max = total - 1;
-                if (max < 0) max = 0;
-                if (explorer_sel < max) explorer_sel++;
-                ui_set_selected(explorer_sel);
-                ui_draw();
-            } else if (k == K_F1) {
-                show_restart_screen();
-            } else if (k == K_F2) {
-                show_shutdown_screen();
-            } else if (k == K_F3) {
-                show_sleep_screen();
-            } else if (k == K_PAGE_UP) {
-                ui_scroll_viewer(-3);
-                ui_draw();
-            } else if (k == K_PAGE_DOWN) {
-                ui_scroll_viewer(3);
-                ui_draw();
-            } else if (k == '\n' || k == '\r') {
-                /* Enter: activate selected item directly when possible.
-                 * - If directory: change into it
-                 * - If game file: start game
-                 * - If Noir C file: run via interpreter
-                 * Otherwise: fall back to shell prompt. */
-                int sel = ui_get_selected();
-                int dir_count = fs_dir_count();
-                int file_count = fs_count();
-                int total = dir_count + file_count;
-                if (total > 0 && sel < total) {
-                    if (sel < dir_count) {
-                        /* directory */
-                        struct Dir* d = fs_dir_get(sel);
-                        if (d) {
-                            if (fs_chdir(d->name) == FS_OK) {
-                                ui_reset_explorer_scroll();
-                                ui_set_selected(0);
-                                ui_draw();
-                            }
-                        }
-                    } else {
-                        struct File* f = fs_get(sel - dir_count);
-                        if (f) {
-                            if (f->type == FILE_GAME) {
-                                current_mode = MODE_GAME;
-                                snake_init();
-                                snake_draw();
-                                /* game loop will take over */
-                            } else if (f->type == FILE_NOIRC) {
-                                /* run Noir C script */
-                                noirc_run(f);
-                            } else {
-                                /* fallback: open shell prompt */
-                                explorer_sel = shell_loop(explorer_sel, &current_mode, k);
-                            }
-                        }
-                    }
-                } else {
-                    explorer_sel = shell_loop(explorer_sel, &current_mode, k);
-                }
-            } else if (k == 'c' || k == 'C') {
-                /* Open command prompt (Cmd) without changing selection — 'c' key */
-                explorer_sel = shell_open_prompt(explorer_sel, &current_mode);
-            }
+            /* Delegate browser/key handling to shell_loop which consumes the key `k`. */
+            explorer_sel = shell_loop(explorer_sel, &current_mode, k);
         } else if (current_mode == MODE_EDITOR) {
             editor_handle_key(k, &current_mode);
             if (current_mode != MODE_EDITOR) ui_draw();
         } else if (current_mode == MODE_GAME) {
-            if (snake_handle_key(k)) {
+            int sh = snake_handle_key(k);
+            if (sh == 1) {
                 /* ESC pressed — return to browser */
                 current_mode = MODE_BROWSER;
                 game_timer   = 0;
+                input_reset_modifiers();
                 ui_draw();
+                continue;
+            } else if (sh == 2) {
+                /* Restart requested — reset timer and redraw immediately */
+                game_timer = 0;
+                snake_draw();
+                continue;
             } else {
                 game_timer++;
                 if (game_timer >= game_speed) {
@@ -163,9 +162,10 @@ void kernel_main(void) {
             }
         }
 
-        /* Small delay to keep input responsive */
-        for (volatile int i = 0; i < 10000; ++i) {
+        /* Short delay to keep input responsive but prevent tearing/super fast games */
+        for (volatile int i = 0; i < 500000; ++i) {
             asm volatile("nop");
         }
+        vga_flush();
     }
 }

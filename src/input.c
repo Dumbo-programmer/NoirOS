@@ -1,5 +1,7 @@
 #include "../include/input.h"
 #include "../include/common.h"
+#include "../include/mouse.h"
+#include "../include/mouse.h"
 
 /**
  * Read a byte from an I/O port.
@@ -22,18 +24,19 @@ static int last_key = 0;
  * is set.  A timeout counter is added so a broken/absent keyboard cannot
  * stall the kernel indefinitely. */
 u8 kb_read_scancode(void) {
-    /* ~100 000 iterations is well above any real keyboard response time
-     * at typical CPU speeds (tens of ms headroom). */
     for (volatile int timeout = 100000; timeout > 0; --timeout) {
-        if (inb(0x64) & 0x01)
-            {
-                u8 val = inb(0x60);
-                /* record last scancode for debug */
-                last_scancode = val;
-                return val;
+        u8 status = inb(0x64);
+        if (status & 0x01) {
+            if (status & 0x20) {
+                mouse_handler();
+                continue;
             }
+            u8 val = inb(0x60);
+            last_scancode = val;
+            return val;
+        }
     }
-    return 0; /* timeout — return a safe no-op value */
+    return 0;
 }
 
 /* Keyboard state tracking */
@@ -99,15 +102,17 @@ static const char scancode_map_upper[128] = {
  * or special key constants (K_ARROW_*, K_F1, etc.).
  * Returns 0 for ignored events.
  */
+static u8 e0_pending = 0;
+
 int read_key(void) {
     u8 sc = kb_read_scancode();
+    if (!sc) return 0;
 
     /* record raw scancode for debug */
     last_scancode = sc;
 
-    /* ---- Extended (E0-prefixed) scancodes ---- */
-    if (sc == 0xE0) {
-        sc = kb_read_scancode();
+    if (e0_pending) {
+        e0_pending = 0;
         if (sc & 0x80) {
             /* Extended key release */
             u8 rel = sc & 0x7F;
@@ -115,10 +120,6 @@ int read_key(void) {
             if (rel == 0x38) kb_state.alt_pressed  = 0; /* R-Alt  */
             return 0;
         }
-        /* Extended key press — arrow/page keys appear here with E0 prefix.
-         * These cases are handled exclusively in the E0 branch to avoid
-         * duplicating them in the non-extended path below, which previously
-         * caused the same code to fire for unrelated scancodes on some BIOSes. */
         if (sc == 0x48) return K_ARROW_UP;
         if (sc == 0x50) return K_ARROW_DOWN;
         if (sc == 0x4B) return K_ARROW_LEFT;
@@ -127,8 +128,15 @@ int read_key(void) {
         if (sc == 0x51) return K_PAGE_DOWN;
         if (sc == 0x47) return K_HOME;
         if (sc == 0x4F) return K_END;
+        if (sc == 0x53) return 127; /* DEL key */
         if (sc == 0x1D) { kb_state.ctrl_pressed = 1; return 0; } /* R-Ctrl */
         if (sc == 0x38) { kb_state.alt_pressed  = 1; return 0; } /* R-Alt  */
+        return 0;
+    }
+
+    /* ---- Extended (E0-prefixed) scancodes ---- */
+    if (sc == 0xE0) {
+        e0_pending = 1;
         return 0;
     }
 
@@ -212,4 +220,20 @@ int input_readline(char* buf, int max) {
         if (ch == '\b') { if (len > 0) len--; continue; }
         if (ch >= 32 && ch <= 126 && len < max - 1) buf[len++] = (char)ch;
     }
+}
+
+int wait_key(void) {
+    int key;
+    do {
+        key = read_key();
+        for (volatile int nop = 0; nop < 500000; nop++);
+    } while (!key);
+    return key;
+}
+
+void input_reset_modifiers(void) {
+    kb_state.shift_pressed = 0;
+    kb_state.ctrl_pressed  = 0;
+    kb_state.alt_pressed   = 0;
+    kb_state.caps_lock = 0;
 }
