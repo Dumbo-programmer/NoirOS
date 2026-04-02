@@ -37,29 +37,32 @@ static inline void outb(unsigned short port, unsigned char val) {
  * Wait until the PS/2 controller input buffer is clear (safe to write).
  * Uses a timeout to avoid infinite blocking when hardware is absent.
  */
-static void mouse_wait_input(void) {
+static int mouse_wait_input(void) {
     for (volatile int t = 100000; t > 0; --t)
-        if (!(inb(0x64) & 0x02)) return;
+        if (!(inb(0x64) & 0x02)) return 1;
+    return 0;
 }
 
 /* Wait until the controller's output buffer has data (safe to read). */
 /**
  * Wait until the PS/2 controller output buffer has data (safe to read).
  */
-static void mouse_wait_output(void) {
+static int mouse_wait_output(void) {
     for (volatile int t = 100000; t > 0; --t)
-        if (inb(0x64) & 0x01) return;
+        if (inb(0x64) & 0x01) return 1;
+    return 0;
 }
 
 /* ---------- Mouse read/write ---------- */
 /**
  * Send a byte to the PS/2 mouse device (via controller auxiliary port).
  */
-static void mouse_write(unsigned char data) {
-    mouse_wait_input();
+static int mouse_write(unsigned char data) {
+    if (!mouse_wait_input()) return 0;
     outb(0x64, 0xD4); /* route next byte to auxiliary (mouse) port */
-    mouse_wait_input();
+    if (!mouse_wait_input()) return 0;
     outb(0x60, data);
+    return 1;
 }
 
 /* mouse_read: read one byte from the PS/2 data port.
@@ -68,8 +71,35 @@ static void mouse_write(unsigned char data) {
  * Read a byte from the PS/2 data port (0x60).
  * Returns the byte or 0 on timeout.
  */
-static unsigned char mouse_read(void) {
-    mouse_wait_output();
+static int mouse_read(unsigned char* out) {
+    if (!mouse_wait_output()) return 0;
+    *out = inb(0x60);
+    return 1;
+}
+
+static int mouse_expect_ack(void) {
+    unsigned char b;
+    if (!mouse_read(&b)) return 0;
+    return b == 0xFA;
+}
+
+static int mouse_drain_output(void) {
+    for (int i = 0; i < 32; ++i) {
+        if (!(inb(0x64) & 0x01)) return 1;
+        (void)inb(0x60);
+    }
+    return 1;
+}
+
+/* mouse_read: read one byte from the PS/2 data port.
+ * Returns 0 on timeout so callers do not spin forever on missing hardware. */
+/**
+ * Read a byte from the PS/2 data port (0x60).
+ * Returns the byte or 0 on timeout.
+ */
+static unsigned char mouse_read_compat(void) {
+    unsigned char v = 0;
+    if (mouse_read(&v)) return v;
     return inb(0x60);
 }
 
@@ -78,48 +108,52 @@ static unsigned char mouse_read(void) {
  * Initialize the PS/2 mouse device and enable data reporting.
  * Performs controller setup and basic self-test sequence.
  */
-void init_mouse(void) {
+int init_mouse(void) {
     unsigned char ack;
+    unsigned char tmp;
+
+    mouse_drain_output();
 
     /* Enable auxiliary device */
-    mouse_wait_input();
+    if (!mouse_wait_input()) return 0;
     outb(0x64, 0xA8);
 
     /* Read and modify the controller command byte to enable IRQ12 */
-    mouse_wait_input();
+    if (!mouse_wait_input()) return 0;
     outb(0x64, 0x20);
-    unsigned char status = mouse_read();
+    if (!mouse_read(&tmp)) return 0;
+    unsigned char status = tmp;
     status |= 0x02;  /* enable IRQ12 */
     status &= ~0x20; /* clear "disable mouse clock" bit */
-    mouse_wait_input();
+    if (!mouse_wait_input()) return 0;
     outb(0x64, 0x60);
-    mouse_wait_input();
+    if (!mouse_wait_input()) return 0;
     outb(0x60, status);
 
-    /* Reset mouse and verify self-test sequence: ACK (0xFA), 0xAA, 0x00 */
-    mouse_write(0xFF);
-    ack = mouse_read(); /* expect 0xFA ACK */
-    (void)ack;          /* we continue regardless; robustness-only check */
-    mouse_read();       /* self-test result (0xAA = pass) */
-    mouse_read();       /* mouse device ID */
+    /* Set defaults and enable data reporting with ACK checks. */
+    if (!mouse_write(0xF6)) return 0;
+    if (!mouse_expect_ack()) return 0;
 
-    /* Enable data reporting; check ACK */
-    mouse_write(0xF4);
-    ack = mouse_read(); /* expect 0xFA ACK */
+    if (!mouse_write(0xF4)) return 0;
+    if (!mouse_expect_ack()) return 0;
+    ack = 0xFA;
     (void)ack;
 
     /* Centre cursor on the runtime screen size */
     mouse.x = SCREEN_W / 2;
     mouse.y = SCREEN_H / 2;
+    mouse.delta_x = 0;
+    mouse.delta_y = 0;
+    mouse.buttons = 0;
+    packet_index = 0;
+    return 1;
 }
 
 /* ---------- Mouse interrupt handler ---------- */
 /**
- * Mouse interrupt handler — collects 3-byte packets and updates
- * the `mouse` state structure (position, deltas, button mask).
+ * Consume one raw PS/2 mouse byte and update packet state.
  */
-void mouse_handler(void) {
-    unsigned char data = inb(0x60);
+void mouse_irq_byte(unsigned char data) {
     mouse_packet[packet_index++] = data;
 
     if (packet_index == 3) {
@@ -140,11 +174,16 @@ void mouse_handler(void) {
         mouse.y -= delta_y / 4;  /* subtract because delta_y is already negated */
 
         /* Clamp to screen bounds */
-        if (mouse.x < 0)      mouse.x = 0;
-        if (mouse.x >= WIDTH)  mouse.x = WIDTH  - 1;
-        if (mouse.y < 0)      mouse.y = 0;
-        if (mouse.y >= HEIGHT) mouse.y = HEIGHT - 1;
+        if (mouse.x < 0)          mouse.x = 0;
+        if (mouse.x >= SCREEN_W)  mouse.x = SCREEN_W - 1;
+        if (mouse.y < 0)          mouse.y = 0;
+        if (mouse.y >= SCREEN_H)  mouse.y = SCREEN_H - 1;
     }
+}
+
+/* Legacy compatibility wrapper used by older polling paths. */
+void mouse_handler(void) {
+    mouse_irq_byte(mouse_read_compat());
 }
 
 /* ---------- Accessor ---------- */

@@ -222,7 +222,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
         "",
         "Features:",
         "  File System Browser",
-        "  Text Editor (Ctrl+S save, Ctrl+X exit)",
+        "  Text Editor (Type to edit, F2 save, Esc exit)",
         "  Snake Game",
         "  Mouse Support (PS/2)",
         "  Command Shell with History",
@@ -434,6 +434,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
     /* Draw prompt */
     int pi = 0;
     for (; prompt[pi]; ++pi) vga_putcell(1 + pi, STATUS_ROW, prompt[pi], 0x0E);
+    vga_flush();
 
     const int prompt_end = 1 + pi;
     int cx   = prompt_end;
@@ -451,18 +452,21 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
 
         if (ch == '\n' || ch == '\r') {
             out[ipos] = '\0';
+            vga_flush();
             return 1;
         }
 
         if (ch == K_ESC) {
             out[0] = '\0';
             ui_draw();
+            vga_flush();
             input_reset_modifiers();
             return 0;
         }
 
         if (ch == '\b') {
             if (ipos > 0) { ipos--; cx--; vga_putcell(cx, STATUS_ROW, ' ', 0x07); }
+            vga_flush();
             continue;
         }
 
@@ -476,6 +480,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
             for (int i = 0; i < ipos && cx < WIDTH - 1; i++) {
                 vga_putcell(cx++, STATUS_ROW, out[i], 0x0F);
             }
+            vga_flush();
             continue;
         }
 
@@ -491,6 +496,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
                 out[ipos++] = h[i];
                 vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
             }
+            vga_flush();
             continue;
         }
 
@@ -506,6 +512,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
                     vga_putcell(cx++, STATUS_ROW, h[i], 0x0F);
                 }
             }
+            vga_flush();
             /* else hist_pos == history_count → input left blank */
             continue;
         }
@@ -515,6 +522,7 @@ static int shell_readline_preloaded(const char* prompt, char* out, int outsz, in
                 out[ipos++] = (char)ch;
                 vga_putcell(cx++, STATUS_ROW, (char)ch, 0x0F);
             }
+            vga_flush();
         }
     }
 }

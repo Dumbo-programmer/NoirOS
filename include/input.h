@@ -12,17 +12,20 @@
 #define K_ARROW_RIGHT 259
 #define K_PAGE_UP    260
 #define K_PAGE_DOWN  261
+#define K_DEL        262
 u8 kb_read_scancode(void);
 
 /* Function keys */
-#define K_F1         262
-#define K_F2         263
-#define K_F3         264
+#define K_F1         263
+#define K_F2         264
+#define K_F3         265
 /* Additional keys */
-#define K_HOME       265
-#define K_END        266
+#define K_HOME       266
+#define K_END        267
 
 /* Function declarations */
+void input_init(void);
+void input_enable_mouse_irq(void);
 int read_key(void);
 int wait_key(void);
 

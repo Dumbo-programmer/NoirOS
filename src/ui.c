@@ -358,14 +358,17 @@ void ui_draw(void) {
         for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 1, ' ', ATTR_STATUS);
     }
 
-    /* Status line 2: selected item name */
+    /* Status line 2: selected item name and quick command hint */
     {
         const char* sel_label = "Sel:  ";
+        const char* hint = " | Cmd: c/C";
         int p = 0;
         for (int i = 0; sel_label[i] && p < WIDTH - 2; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 2, sel_label[i], ATTR_STATUS), p++;
         for (int i = 0; fname[i] && p < WIDTH - 2; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 2, fname[i], ATTR_NORMAL), p++;
+        for (int i = 0; hint[i] && p < WIDTH - 2; i++)
+            vga_putcell(status_win.x + 1 + p, status_win.y + 2, hint[i], ATTR_PROMPT), p++;
         for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 2, ' ', ATTR_STATUS);
     }
 }

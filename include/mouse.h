@@ -9,8 +9,9 @@ typedef struct {
 } mouse_state_t;
 
 /* Mouse function prototypes */
-void init_mouse(void);
+int init_mouse(void);
 void mouse_handler(void);
+void mouse_irq_byte(unsigned char data);
 mouse_state_t* get_mouse_state(void);
 
 /* Mouse button constants */

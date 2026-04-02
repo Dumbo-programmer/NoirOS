@@ -17,6 +17,7 @@ ISO_DIR := iso
 ISO := NoirOS.iso
 KERNEL_ELF := kernel.elf
 KERNEL_BIN := kernel.bin
+DISK_IMG := noiros_disk.img
 
 .PHONY: all clean prepare_iso run
 
@@ -34,7 +35,7 @@ $(ASMOBJ): $(ASM) | $(OBJ)
 # Link into ELF using linker.ld
 $(KERNEL_ELF): $(OBJS) $(ASMOBJ) linker.ld
 	$(LD) -m elf_i386 -T linker.ld -nostdlib -z max-page-size=0x1000 \
-	     --build-id=none -N \
+	     --build-id=none \
 	     -o $(KERNEL_ELF) $(ASMOBJ) $(OBJS)
 	@echo "Built ELF kernel: $(KERNEL_ELF)"
 
@@ -55,8 +56,13 @@ $(ISO): prepare_iso
 	 (echo "grub-mkrescue failed - ensure grub & xorriso are installed"; false)
 	@echo "Created $(ISO)"
 
-run: $(ISO)
-	qemu-system-i386 -cdrom $(ISO) -m 512
+prepare_disk:
+	@if [ ! -f $(DISK_IMG) ]; then \
+		dd if=/dev/zero of=$(DISK_IMG) bs=1M count=32 >/dev/null 2>&1; \
+	fi
+
+run: $(ISO) prepare_disk
+	qemu-system-i386 -boot order=d -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw,if=ide -m 512
 
 clean:
 ifeq ($(OS),Windows_NT)

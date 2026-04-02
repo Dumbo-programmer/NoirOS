@@ -11,6 +11,9 @@
 #include "../include/game_snake.h"
 #include "../include/noirc.h"
 #include "../include/serial.h"
+#include "../include/idt.h"
+#include "../include/memory.h"
+#include "../include/mouse.h"
 
 /* forward declarations of game/editor functions */
 void snake_init(void);
@@ -34,9 +37,15 @@ static int current_mode = MODE_BROWSER;
  * Handles navigation in browser mode, editor input and the snake game loop.
  */
 void kernel_main(void) {
-    init_filesystem();
     /* Initialize debug serial for logging (captured by QEMU -serial stdio) */
     serial_init();
+    memory_init();
+    idt_init();
+    input_init();
+    if (init_mouse()) {
+        input_enable_mouse_irq();
+    }
+    init_filesystem();
     /* Ensure UI layout matches runtime VGA mode */
     ui_relayout();
     ui_draw();
