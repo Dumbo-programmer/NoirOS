@@ -5,24 +5,39 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ page.title | default: site.title }}</title>
   <link rel="stylesheet" href="{{ '/assets/css/dark.css' | relative_url }}">
-  <meta name="theme-color" content="#0b0f14">
+  <meta name="theme-color" content="#081218">
   <meta name="description" content="NoirOS project documentation">
 </head>
 <body>
+  <div class="crt-overlay" aria-hidden="true"></div>
+
   <header class="site-header">
-    <div class="wrap">
-      <h1 class="site-title"><a href="/docs/">NoirOS</a></h1>
+    <div class="wrap header-inner">
+      <h1 class="site-title"><a href="{{ '/docs/' | relative_url }}">NOIR OS</a></h1>
+      <nav class="site-nav" aria-label="Main">
+        <a href="{{ '/docs/' | relative_url }}">Home</a>
+        <a href="{{ '/docs/api.html' | relative_url }}">API</a>
+        <a href="{{ '/docs/kernel.html' | relative_url }}">Kernel</a>
+        <a href="{{ '/docs/fs.html' | relative_url }}">FS</a>
+      </nav>
     </div>
   </header>
 
   <main class="wrap">
-    <article class="content">
-      {{ content }}
-    </article>
+    <section class="terminal-shell">
+      <div class="terminal-titlebar">
+        <span class="dot dot-red"></span>
+        <span class="dot dot-cyan"></span>
+        <span class="terminal-title">noiros.docs :: terminal</span>
+      </div>
+      <article class="content">
+        {{ content }}
+      </article>
+    </section>
   </main>
 
   <footer class="site-footer">
-    <div class="wrap">&copy; NoirOS</div>
+    <div class="wrap">&copy; NoirOS | Retro docs mode</div>
   </footer>
 </body>
 </html>
