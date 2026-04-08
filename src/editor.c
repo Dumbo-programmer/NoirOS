@@ -18,7 +18,7 @@ static int  editor_modified = 0;
 static int  editor_readonly = 0;
 
 static char status_msg[80] = "Ready";
-static u8   status_attr = 0x0F;
+static u8   status_attr = ATTR_NORMAL;
 
 /* Rows:
  * y=0           title bar
@@ -96,7 +96,7 @@ static void set_status(const char* msg, u8 attr) {
 
 static void insert_char_at(int off, char ch) {
     if (editor_len >= (int)sizeof(editor_buffer) - 1) {
-        set_status("Buffer full", 0x0C);
+        set_status("Buffer full", ATTR_ERROR);
         return;
     }
 
@@ -117,11 +117,11 @@ static void delete_char_at(int off) {
 
 static int editor_save(void) {
     if (editor_file_index < 0 || editor_file_index >= fs_count()) {
-        set_status("No file open", 0x0C);
+        set_status("No file open", ATTR_ERROR);
         return 0;
     }
     if (editor_readonly) {
-        set_status("Read-only file: cannot save", 0x0C);
+        set_status("Read-only file: cannot save", ATTR_ERROR);
         return 0;
     }
 
@@ -129,12 +129,12 @@ static int editor_save(void) {
     int r = fs_write(f->name, editor_buffer);
     if (r >= 0) {
         editor_modified = 0;
-        set_status("Saved", 0x0A);
+        set_status("Saved", ATTR_SUCCESS);
         return 1;
     }
 
-    if (r == FS_ERR_RDONLY) set_status("Read-only file: cannot save", 0x0C);
-    else set_status("Save failed", 0x0C);
+    if (r == FS_ERR_RDONLY) set_status("Read-only file: cannot save", ATTR_ERROR);
+    else set_status("Save failed", ATTR_ERROR);
     return 0;
 }
 
@@ -142,8 +142,8 @@ static int prompt_discard_or_save(void) {
     if (!editor_modified) return 1;
 
     const char* prompt = "Unsaved changes: S=Save+Exit  D=Discard  C=Cancel";
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', 0x40);
-    for (int i = 0; prompt[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 1, prompt[i], 0x4F);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', ATTR_TITLE);
+    for (int i = 0; prompt[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 1, prompt[i], ATTR_PROMPT);
     vga_flush();
 
     for (;;) {
@@ -162,16 +162,16 @@ void editor_draw(void) {
     vga_clear();
 
     /* Title */
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
     const char* title = "NoirOS Editor";
-    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
     /* Content area */
     for (int row = 0; row < VIEW_H; ++row) {
         int line_no = editor_scroll + row;
         int off = get_line_start(line_no);
 
-        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 1 + row, ' ', 0x0F);
+        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 1 + row, ' ', ATTR_NORMAL);
         if (off >= editor_len) continue;
 
         int max_off = off + get_line_length_at_off(off);
@@ -181,14 +181,14 @@ void editor_draw(void) {
             if (ch == '\t') {
                 int spaces = TAB_SIZE - (screen_col % TAB_SIZE);
                 while (spaces-- > 0 && screen_col < WIDTH) {
-                    vga_putcell(screen_col, 1 + row, ' ', 0x0F);
+                    vga_putcell(screen_col, 1 + row, ' ', ATTR_NORMAL);
                     screen_col++;
                 }
             } else if (ch >= 32 && ch <= 126) {
-                vga_putcell(screen_col, 1 + row, ch, 0x0F);
+                vga_putcell(screen_col, 1 + row, ch, ATTR_NORMAL);
                 screen_col++;
             } else {
-                vga_putcell(screen_col, 1 + row, '.', 0x08);
+                vga_putcell(screen_col, 1 + row, '.', ATTR_BORDER);
                 screen_col++;
             }
         }
@@ -213,13 +213,13 @@ void editor_draw(void) {
 
         char cur_ch = (col < ll) ? editor_buffer[off + col] : ' ';
         if (cur_ch < 32 || cur_ch > 126) cur_ch = ' ';
-        vga_putcell(screen_col, 1 + screen_line, cur_ch, 0xF0);
+        vga_putcell(screen_col, 1 + screen_line, cur_ch, ATTR_SELECTED);
     }
 
     /* Help row */
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 2, ' ', 0x1E);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 2, ' ', ATTR_VIEWER_TITLE);
     const char* help = "Type to edit | Arrows/Home/End/PgUp/PgDn | F2/Ctrl+S Save | F3 Save+Exit | Esc Exit";
-    for (int i = 0; help[i] && i < WIDTH - 1; ++i) vga_putcell(i, HEIGHT - 2, help[i], 0x1E);
+    for (int i = 0; help[i] && i < WIDTH - 1; ++i) vga_putcell(i, HEIGHT - 2, help[i], ATTR_VIEWER_TITLE);
 
     /* Status row */
     for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', status_attr);
@@ -288,8 +288,8 @@ void editor_open(const char* fname, int* mode) {
     editor_scroll = 0;
     editor_modified = 0;
     editor_readonly = f->readonly ? 1 : 0;
-    if (editor_readonly) set_status("Read-only file", 0x0C);
-    else set_status("Ready", 0x0F);
+    if (editor_readonly) set_status("Read-only file", ATTR_ERROR);
+    else set_status("Ready", ATTR_PROMPT);
 
     *mode = MODE_EDITOR;
     editor_draw();
@@ -427,7 +427,7 @@ void editor_handle_key(int key, int* mode) {
     /* Read-only guard for editing actions */
     if (editor_readonly) {
         if (key == '\b' || key == K_DEL || key == '\n' || key == '\r' || key == '\t' || (key >= 32 && key <= 126)) {
-            set_status("Read-only file", 0x0C);
+            set_status("Read-only file", ATTR_ERROR);
             editor_draw();
             return;
         }
@@ -441,7 +441,7 @@ void editor_handle_key(int key, int* mode) {
             offset_to_cursor(off - 1, &editor_cursor_line, &editor_cursor_col);
             editor_desired_col = editor_cursor_col;
             ensure_cursor_visible();
-            set_status("Edited", 0x0F);
+            set_status("Edited", ATTR_PROMPT);
         }
         editor_draw();
         return;
@@ -451,7 +451,7 @@ void editor_handle_key(int key, int* mode) {
         int off = cursor_to_offset();
         if (off < editor_len) {
             delete_char_at(off);
-            set_status("Edited", 0x0F);
+            set_status("Edited", ATTR_PROMPT);
         }
         editor_draw();
         return;
@@ -463,7 +463,7 @@ void editor_handle_key(int key, int* mode) {
         offset_to_cursor(off + 1, &editor_cursor_line, &editor_cursor_col);
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
-        set_status("Edited", 0x0F);
+        set_status("Edited", ATTR_PROMPT);
         editor_draw();
         return;
     }
@@ -474,7 +474,7 @@ void editor_handle_key(int key, int* mode) {
         offset_to_cursor(off + TAB_SIZE, &editor_cursor_line, &editor_cursor_col);
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
-        set_status("Edited", 0x0F);
+        set_status("Edited", ATTR_PROMPT);
         editor_draw();
         return;
     }
@@ -485,7 +485,7 @@ void editor_handle_key(int key, int* mode) {
         offset_to_cursor(off + 1, &editor_cursor_line, &editor_cursor_col);
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
-        set_status("Edited", 0x0F);
+        set_status("Edited", ATTR_PROMPT);
         editor_draw();
         return;
     }

@@ -18,6 +18,7 @@ static int viewer_scroll = 0;
 static int explorer_scroll = 0;
 /* 0 = explorer panel has focus, 1 = viewer panel has focus */
 static int active_panel = 0;
+static int ui_fx_phase = 0;
 
 /* Button definitions for clickable controls */
 typedef struct {
@@ -74,33 +75,142 @@ static void draw_noiros_logo(int x, int y, u8 bg) {
     }
     int x2 = x + kstrlen(left);
     for (int i = 0; right[i]; ++i) {
-        vga_putcell(x2 + i, y, right[i], VGA_ATTR(COL_LIGHT_RED, bg));
+        vga_putcell(x2 + i, y, right[i], VGA_ATTR(COL_LIGHT_CYAN, bg));
+    }
+}
+
+/* Retro pixel-style backdrop using ASCII dither dots/stars. */
+static void draw_retro_pixel_backdrop(u8 base_attr, u8 pixel_attr, int phase) {
+    for (int y = 0; y < SCREEN_H; ++y) {
+        for (int x = 0; x < SCREEN_W; ++x) {
+            int p = (x * 3 + y * 5 + phase) & 0x0F;
+            char ch = ' ';
+            u8 attr = base_attr;
+            if (p == 0 || p == 7) {
+                ch = '.';
+                attr = pixel_attr;
+            } else if (p == 3) {
+                ch = '+';
+                attr = pixel_attr;
+            } else if (((x + y + phase) & 0x1F) == 0) {
+                ch = '*';
+                attr = pixel_attr;
+            }
+            vga_putcell(x, y, ch, attr);
+        }
+    }
+}
+
+static void draw_desktop_ambient(int phase) {
+    draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_BLACK), VGA_ATTR(COL_DARK_GREY, COL_BLACK), phase);
+
+    /* Scanline-style accents to make the desktop feel less flat. */
+    for (int y = 2; y < SCREEN_H - 1; y += 4) {
+        for (int x = 0; x < SCREEN_W; ++x) {
+            if (((x + phase) % 6) == 0) {
+                vga_putcell(x, y, '.', ATTR_BORDER);
+            }
+        }
+    }
+}
+
+static void draw_window_glints(const Window* w, int phase) {
+    u8 pulse = ((phase >> 1) & 1) ? ATTR_PROMPT : ATTR_STATUS;
+    int x1 = w->x;
+    int y1 = w->y;
+    int x2 = w->x + w->w - 1;
+    int y2 = w->y + w->h - 1;
+
+    if (x1 >= 0 && x1 < SCREEN_W && y1 >= 0 && y1 < SCREEN_H) vga_putcell(x1, y1, '+', pulse);
+    if (x2 >= 0 && x2 < SCREEN_W && y1 >= 0 && y1 < SCREEN_H) vga_putcell(x2, y1, '+', pulse);
+    if (x1 >= 0 && x1 < SCREEN_W && y2 >= 0 && y2 < SCREEN_H) vga_putcell(x1, y2, '+', pulse);
+    if (x2 >= 0 && x2 < SCREEN_W && y2 >= 0 && y2 < SCREEN_H) vga_putcell(x2, y2, '+', pulse);
+}
+
+static u8 run_sleep_screensaver(void) {
+    const char* title = "NOIROS DREAM MODE";
+    const char* hint = "Press any key to wake";
+    int title_len = kstrlen(title);
+    int hint_len = kstrlen(hint);
+    int frame = 0;
+
+    for (;;) {
+        draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_BLACK), VGA_ATTR(COL_CYAN, COL_BLACK), frame);
+
+        /* Drifting star particles. */
+        int stars = SCREEN_W / 2;
+        if (stars < 20) stars = 20;
+        for (int i = 0; i < stars; ++i) {
+            int sx = (i * 11 + frame * 3) % SCREEN_W;
+            int sy = (i * 7 + frame * 2 + ((i & 3) * 3)) % SCREEN_H;
+            char ch = ((i + frame) & 3) ? '.' : '*';
+            u8 attr = ((i + frame) & 1) ? ATTR_STATUS : ATTR_PROMPT;
+            vga_putcell(sx, sy, ch, attr);
+        }
+
+        /* Bouncing banner. */
+        int travel_x = SCREEN_W - title_len - 2;
+        if (travel_x < 1) travel_x = 1;
+        int bx = frame % (travel_x * 2);
+        if (bx > travel_x) bx = (travel_x * 2) - bx;
+        bx += 1;
+
+        int travel_y = SCREEN_H - 8;
+        if (travel_y < 1) travel_y = 1;
+        int by = (frame / 3) % (travel_y * 2);
+        if (by > travel_y) by = (travel_y * 2) - by;
+        by += 2;
+
+        draw_box(bx - 1, by - 1, title_len + 2, 3, "", ATTR_BORDER, ATTR_BORDER, VGA_ATTR(COL_BLACK, COL_BLACK));
+        for (int i = 0; i < title_len; ++i) vga_putcell(bx + i, by, title[i], ATTR_PROMPT);
+
+        int hx = (SCREEN_W - hint_len) / 2;
+        if (hx < 0) hx = 0;
+        if (SCREEN_H >= 2) {
+            for (int x = 0; x < SCREEN_W; ++x) vga_putcell(x, SCREEN_H - 2, ' ', ATTR_NORMAL);
+            for (int i = 0; i < hint_len && hx + i < SCREEN_W; ++i)
+                vga_putcell(hx + i, SCREEN_H - 2, hint[i], ATTR_STATUS);
+        }
+
+        vga_flush();
+
+        u8 sc = kb_read_scancode();
+        if (sc) return sc;
+
+        for (int wait = 0; wait < 5; ++wait) {
+            for (volatile int d = 0; d < 700000; ++d);
+            sc = kb_read_scancode();
+            if (sc) return sc;
+        }
+        frame++;
     }
 }
 
 void ui_show_boot_loader(void) {
     const int boot_delay_per_step = 25000000; /* ~10s total on typical QEMU speed */
     const int logo_len = 7; /* "Noir OS" */
-    const int logo_x = (WIDTH - logo_len) / 2;
-    const int logo_y = HEIGHT / 2 - 4;
+    const int logo_x = (SCREEN_W - logo_len) / 2;
+    const int logo_y = SCREEN_H / 2 - 4;
     const char* boot_msg = "Booting NoirOS";
     const int msg_len = kstrlen(boot_msg);
-    const int msg_x = (WIDTH - msg_len) / 2;
-    const int bar_w = 34;
-    const int bar_x = (WIDTH - (bar_w + 2)) / 2;
-    const int bar_y = HEIGHT / 2 + 1;
+    const int msg_x = (SCREEN_W - msg_len) / 2;
+    int bar_w = SCREEN_W - 20;
+    if (bar_w < 24) bar_w = 24;
+    if (bar_w > 52) bar_w = 52;
+    const int bar_x = (SCREEN_W - (bar_w + 2)) / 2;
+    const int bar_y = SCREEN_H / 2 + 1;
 
     for (int step = 0; step <= bar_w; ++step) {
-        vga_clear();
+        draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_BLACK), VGA_ATTR(COL_CYAN, COL_BLACK), step);
 
         draw_noiros_logo(logo_x, logo_y, COL_BLACK);
 
         for (int i = 0; i < msg_len; ++i) {
-            vga_putcell(msg_x + i, logo_y + 2, boot_msg[i], VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+            vga_putcell(msg_x + i, logo_y + 2, boot_msg[i], ATTR_STATUS);
         }
 
-        vga_putcell(bar_x, bar_y, '[', VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
-        vga_putcell(bar_x + bar_w + 1, bar_y, ']', VGA_ATTR(COL_LIGHT_GREY, COL_BLACK));
+        vga_putcell(bar_x, bar_y, '[', ATTR_STATUS);
+        vga_putcell(bar_x + bar_w + 1, bar_y, ']', ATTR_STATUS);
         for (int i = 0; i < bar_w; ++i) {
             char ch = (i < step) ? '=' : ' ';
             u8 attr = (i < step) ? VGA_ATTR(COL_LIGHT_CYAN, COL_BLACK)
@@ -276,8 +386,8 @@ static void init_power_buttons(void) {
     power_buttons[0].w = btn_w;
     power_buttons[0].h = 1;
     power_buttons[0].text = " Restart(F1) ";
-    power_buttons[0].normal_attr = VGA_ATTR(COL_WHITE, COL_GREEN);
-    power_buttons[0].pressed_attr = VGA_ATTR(COL_GREEN, COL_WHITE);
+    power_buttons[0].normal_attr = VGA_ATTR(COL_BLACK, COL_LIGHT_CYAN);
+    power_buttons[0].pressed_attr = VGA_ATTR(COL_LIGHT_CYAN, COL_BLACK);
     power_buttons[0].ticks = 0;
     power_buttons[0].callback = show_restart_screen;
     
@@ -298,8 +408,8 @@ static void init_power_buttons(void) {
     power_buttons[2].w = btn_w;
     power_buttons[2].h = 1;
     power_buttons[2].text = " Sleep(F3) ";
-    power_buttons[2].normal_attr = VGA_ATTR(COL_WHITE, COL_BLUE);
-    power_buttons[2].pressed_attr = VGA_ATTR(COL_BLUE, COL_WHITE);
+    power_buttons[2].normal_attr = VGA_ATTR(COL_WHITE, COL_CYAN);
+    power_buttons[2].pressed_attr = VGA_ATTR(COL_CYAN, COL_WHITE);
     power_buttons[2].ticks = 0;
     power_buttons[2].callback = show_sleep_screen;
     
@@ -317,9 +427,13 @@ static void draw_controls_window(void) {
     int inner_h = control_win.h - 2;
 
     /* clear inner area */
-    for (int yy = 0; yy < inner_h; ++yy)
-        for (int xx = 0; xx < inner_w; ++xx)
-            vga_putcell(inner_x + xx, inner_y + yy, ' ', ATTR_STATUS);
+    for (int yy = 0; yy < inner_h; ++yy) {
+        for (int xx = 0; xx < inner_w; ++xx) {
+            char px = (((xx + yy + ui_fx_phase) % 7) == 0) ? '.' : ' ';
+            u8 attr = (px == '.') ? ATTR_BORDER : ATTR_STATUS;
+            vga_putcell(inner_x + xx, inner_y + yy, px, attr);
+        }
+    }
 
     /* Draw buttons with proper click detection zones */
     for (int i = 0; i < 3; i++) {
@@ -355,10 +469,21 @@ static void draw_controls_window(void) {
 
 /* -------- Main draw function (dirs + files + controls) -------- */
 void ui_draw(void) {
-    vga_clear();
+    draw_desktop_ambient(ui_fx_phase);
     /* Title */
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
+    for (int x = 0; x < SCREEN_W; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
     draw_noiros_logo(1, 0, COL_BLUE);
+
+    {
+        const char spin_chars[4] = {'|', '/', '-', '\\'};
+        const char* focus = (active_panel == 0) ? "Focus: Explorer" : "Focus: Viewer";
+        int flen = kstrlen(focus);
+        int fx = SCREEN_W - flen - 4;
+        if (fx < 10) fx = 10;
+        if (fx > 1) vga_putcell(fx - 2, 0, spin_chars[(ui_fx_phase >> 1) & 3], ATTR_PROMPT);
+        for (int i = 0; focus[i] && fx + i < SCREEN_W - 1; ++i)
+            vga_putcell(fx + i, 0, focus[i], ATTR_PROMPT);
+    }
 
     u8 exp_border = (active_panel == 0) ? ATTR_TITLE : ATTR_BORDER;
     u8 view_border = (active_panel == 1) ? ATTR_TITLE : ATTR_BORDER;
@@ -366,6 +491,10 @@ void ui_draw(void) {
     draw_box(viewer_win.x, viewer_win.y, viewer_win.w, viewer_win.h, viewer_win.title, ATTR_PROMPT, view_border, ATTR_NORMAL);
     draw_controls_window();
     draw_box(status_win.x, status_win.y, status_win.w, status_win.h, status_win.title, ATTR_VIEWER_TITLE, ATTR_STATUS, ATTR_NORMAL);
+    draw_window_glints(&explorer_win, ui_fx_phase);
+    draw_window_glints(&viewer_win, ui_fx_phase);
+    draw_window_glints(&control_win, ui_fx_phase);
+    draw_window_glints(&status_win, ui_fx_phase);
 
     int dir_count = fs_dir_count();
     int file_count = fs_count();
@@ -397,28 +526,32 @@ void ui_draw(void) {
     char cwd_buf[64];
     fs_pwd(cwd_buf, sizeof(cwd_buf));
     {
+        int status_cols = status_win.w - 2;
         const char* label = "Path: ";
         int p = 0;
-        for (int i = 0; label[i] && p < WIDTH - 2; i++)
+        for (int i = 0; label[i] && p < status_cols; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 1, label[i], ATTR_STATUS), p++;
-        for (int i = 0; cwd_buf[i] && p < WIDTH - 2; i++)
+        for (int i = 0; cwd_buf[i] && p < status_cols; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 1, cwd_buf[i], ATTR_PROMPT), p++;
-        for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 1, ' ', ATTR_STATUS);
+        for (; p < status_cols; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 1, ' ', ATTR_STATUS);
     }
 
     /* Status line 2: selected item name and quick command hint */
     {
+        int status_cols = status_win.w - 2;
         const char* sel_label = "Sel:  ";
-        const char* hint = " | Cmd: c/C";
+        const char* hint = " | TAB focus | Enter open | C cmd";
         int p = 0;
-        for (int i = 0; sel_label[i] && p < WIDTH - 2; i++)
+        for (int i = 0; sel_label[i] && p < status_cols; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 2, sel_label[i], ATTR_STATUS), p++;
-        for (int i = 0; fname[i] && p < WIDTH - 2; i++)
+        for (int i = 0; fname[i] && p < status_cols; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 2, fname[i], ATTR_NORMAL), p++;
-        for (int i = 0; hint[i] && p < WIDTH - 2; i++)
+        for (int i = 0; hint[i] && p < status_cols; i++)
             vga_putcell(status_win.x + 1 + p, status_win.y + 2, hint[i], ATTR_PROMPT), p++;
-        for (; p < WIDTH - 2; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 2, ' ', ATTR_STATUS);
+        for (; p < status_cols; p++) vga_putcell(status_win.x + 1 + p, status_win.y + 2, ' ', ATTR_STATUS);
     }
+
+    ui_fx_phase = (ui_fx_phase + 1) & 0x3FFF;
 }
 
 void ui_clear(void) {
@@ -435,12 +568,12 @@ void ui_clear(void) {
 /* Center a string horizontally and draw it at row `row` with attribute `attr`. */
 static void draw_centered(int row, const char* s, unsigned char attr) {
     int len     = kstrlen(s);
-    int start_x = (WIDTH - len) / 2;
+    int start_x = (SCREEN_W - len) / 2;
     if (start_x < 0) start_x = 0;
     /* Clear the row segment first to erase any previous text of different length */
-    for (int x = start_x; x < start_x + len && x < WIDTH; x++)
+    for (int x = start_x; x < start_x + len && x < SCREEN_W; x++)
         vga_putcell(x, row, ' ', attr);
-    for (int i = 0; i < len && start_x + i < WIDTH; i++)
+    for (int i = 0; i < len && start_x + i < SCREEN_W; i++)
         vga_putcell(start_x + i, row, s[i], attr);
 }
     /* ---- explorer/viewer implementations ---- */
@@ -453,6 +586,8 @@ static void draw_centered(int row, const char* s, unsigned char attr) {
             u8 attr = (idx == explorer_sel) ? ATTR_SELECTED : ATTR_NORMAL;
             char display[40];
             int p = 0;
+            append_char(display, &p, (idx == explorer_sel) ? '>' : ' ', sizeof(display));
+            append_char(display, &p, ' ', sizeof(display));
             if (idx < dir_count) {
                 struct Dir* d = fs_dir_get(idx);
                 append_char(display, &p, 'd', sizeof(display));
@@ -533,9 +668,9 @@ static int countdown_second(int row, unsigned char attr_bg, unsigned char attr_f
     msg[pos]   = '\0';
 
     /* Clear and draw countdown row */
-    int start_x = (WIDTH - pos) / 2;
-    for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, row, ' ', attr_bg);
-    for (int i = 0; i < pos && start_x + i < WIDTH; i++)
+    int start_x = (SCREEN_W - pos) / 2;
+    for (int x = 1; x < SCREEN_W - 1; x++) vga_putcell(x, row, ' ', attr_bg);
+    for (int i = 0; i < pos && start_x + i < SCREEN_W; i++)
         vga_putcell(start_x + i, row, msg[i], attr_fg);
 
     /* Poll ESC ~10 times with ~100 ms delay each */
@@ -552,17 +687,12 @@ static int countdown_second(int row, unsigned char attr_bg, unsigned char attr_f
 void show_restart_screen(void) {
     vga_clear();
 
-    /* Gradient background */
-    for (int y = 0; y < HEIGHT; y++) {
-        unsigned char attr = (unsigned char)(VGA_ATTR(COL_BLACK, COL_GREEN) + (y / 3));
-        if (attr > VGA_ATTR(COL_WHITE, COL_GREEN)) attr = VGA_ATTR(COL_WHITE, COL_GREEN);
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
-    }
+    draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), 9);
 
     /* Dialog box centered on screen */
-    int bx = (WIDTH  - 30) / 2;
-    int by = (HEIGHT - 10) / 2;
-    draw_box(bx, by, 30, 10, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_GREEN), VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_BLACK, COL_GREEN));
+    int bx = (SCREEN_W  - 30) / 2;
+    int by = (SCREEN_H - 10) / 2;
+    draw_box(bx, by, 30, 10, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_BLACK, COL_CYAN));
 
     const char* lines[] = {
         "Restarting NoirOS...", "",
@@ -574,23 +704,23 @@ void show_restart_screen(void) {
     };
     int num_lines = 8;
     int text_start_row = by + 1;
-    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
-        draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_GREEN));
+    for (int i = 0; i < num_lines && text_start_row + i < SCREEN_H; i++)
+        draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_CYAN));
 
     int ticker_row = by + num_lines + 1;
-    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+    if (ticker_row >= SCREEN_H) ticker_row = SCREEN_H - 2;
 
     for (int cd = 3; cd > 0; cd--)
-        if (countdown_second(ticker_row, VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_WHITE, COL_GREEN), "Restarting in ", cd))
+        if (countdown_second(ticker_row, VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_WHITE, COL_CYAN), "Restarting in ", cd))
             { ui_draw(); return; }
 
     /* Commit — jump back to kernel entry point */
     vga_clear();
-    for (int y = 0; y < HEIGHT; y++)
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
-    int bx2 = (WIDTH - 20) / 2, by2 = (HEIGHT - 5) / 2;
-    draw_box(bx2, by2, 20, 5, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_GREEN), VGA_ATTR(COL_YELLOW, COL_GREEN), VGA_ATTR(COL_BLACK, COL_GREEN));
-    draw_centered(by2 + 2, "Restarting kernel...", VGA_ATTR(COL_WHITE, COL_GREEN));
+    for (int y = 0; y < SCREEN_H; y++)
+        for (int x = 0; x < SCREEN_W; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
+    int bx2 = (SCREEN_W - 20) / 2, by2 = (SCREEN_H - 5) / 2;
+    draw_box(bx2, by2, 20, 5, " RESTARTING ", VGA_ATTR(COL_WHITE, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_BLACK, COL_CYAN));
+    draw_centered(by2 + 2, "Restarting kernel...", VGA_ATTR(COL_WHITE, COL_CYAN));
     for (volatile int i = 0; i < 10000000; i++);
 
     /* Jump to kernel load address — matches linker.ld ENTRY address */
@@ -608,14 +738,10 @@ void show_restart_screen(void) {
 void show_shutdown_screen(void) {
     vga_clear();
 
-    for (int y = 0; y < HEIGHT; y++) {
-        unsigned char attr = (unsigned char)(VGA_ATTR(COL_BLACK, COL_RED) + (y / 3));
-        if (attr > VGA_ATTR(COL_WHITE, COL_RED)) attr = VGA_ATTR(COL_WHITE, COL_RED);
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
-    }
+    draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_RED), VGA_ATTR(COL_LIGHT_RED, COL_RED), 5);
 
-    int bx = (WIDTH  - 30) / 2;
-    int by = (HEIGHT - 12) / 2;
+    int bx = (SCREEN_W  - 30) / 2;
+    int by = (SCREEN_H - 12) / 2;
     draw_box(bx, by, 30, 12, " SHUTTING DOWN ", VGA_ATTR(COL_WHITE, COL_RED), VGA_ATTR(COL_LIGHT_RED, COL_RED), VGA_ATTR(COL_BLACK, COL_RED));
 
     const char* lines[] = {
@@ -629,11 +755,11 @@ void show_shutdown_screen(void) {
     };
     int num_lines = 9;
     int text_start_row = by + 1;
-    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
+    for (int i = 0; i < num_lines && text_start_row + i < SCREEN_H; i++)
         draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_RED));
 
     int ticker_row = by + num_lines + 1;
-    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+    if (ticker_row >= SCREEN_H) ticker_row = SCREEN_H - 2;
 
     for (int cd = 3; cd > 0; cd--)
         if (countdown_second(ticker_row, VGA_ATTR(COL_LIGHT_RED, COL_RED), VGA_ATTR(COL_WHITE, COL_RED), "Bye in ", cd))
@@ -649,12 +775,12 @@ void show_shutdown_screen(void) {
     };
     int stage_row  = by + 3;
     int bar_row    = by + 5;
-    int bar_x      = (WIDTH - 20) / 2;
+    int bar_x      = (SCREEN_W - 20) / 2;
     int bar_w      = 20;
 
     for (int s = 0; s < 5; s++) {
         /* Clear and redraw stage text */
-        for (int x = 1; x < WIDTH - 1; x++) vga_putcell(x, stage_row, ' ', VGA_ATTR(COL_YELLOW, COL_RED));
+        for (int x = 1; x < SCREEN_W - 1; x++) vga_putcell(x, stage_row, ' ', VGA_ATTR(COL_YELLOW, COL_RED));
         draw_centered(stage_row, stages[s], VGA_ATTR(COL_WHITE, COL_RED));
 
         /* Progress bar */
@@ -669,9 +795,9 @@ void show_shutdown_screen(void) {
 
     /* Final halt screen */
     vga_clear();
-    for (int y = 0; y < HEIGHT; y++)
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_BLACK, COL_BLACK));
-    int bx2 = (WIDTH - 30) / 2, by2 = (HEIGHT - 5) / 2;
+    for (int y = 0; y < SCREEN_H; y++)
+        for (int x = 0; x < SCREEN_W; x++) vga_putcell(x, y, ' ', VGA_ATTR(COL_BLACK, COL_BLACK));
+    int bx2 = (SCREEN_W - 30) / 2, by2 = (SCREEN_H - 5) / 2;
     draw_box(bx2, by2, 30, 5, " GOODBYE! ", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY), ATTR_NORMAL, VGA_ATTR(COL_BLACK, COL_BLACK));
     draw_centered(by2 + 2, "Safe to power off now", VGA_ATTR(COL_WHITE, COL_LIGHT_GREY));
     for (volatile int i = 0; i < 20000000; i++);
@@ -688,15 +814,11 @@ void show_shutdown_screen(void) {
 void show_sleep_screen(void) {
     vga_clear();
 
-    for (int y = 0; y < HEIGHT; y++) {
-        unsigned char attr = 0x10 + (y / 5);
-        if (attr > 0x1F) attr = 0x1F;
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', attr);
-    }
+    draw_retro_pixel_backdrop(VGA_ATTR(COL_BLACK, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), 1);
 
-    int bx = (WIDTH  - 30) / 2;
-    int by = (HEIGHT - 10) / 2;
-    draw_box(bx, by, 30, 10, " GOING TO SLEEP ", VGA_ATTR(COL_WHITE, COL_BLUE), VGA_ATTR(COL_YELLOW, COL_BLUE), VGA_ATTR(COL_BLACK, COL_BLUE));
+    int bx = (SCREEN_W  - 30) / 2;
+    int by = (SCREEN_H - 10) / 2;
+    draw_box(bx, by, 30, 10, " GOING TO SLEEP ", VGA_ATTR(COL_WHITE, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_BLACK, COL_CYAN));
 
     const char* lines[] = {
         "Time for a nap...", "",
@@ -708,67 +830,51 @@ void show_sleep_screen(void) {
     };
     int num_lines = 8;
     int text_start_row = by + 1;
-    for (int i = 0; i < num_lines && text_start_row + i < HEIGHT; i++)
-        draw_centered(text_start_row + i, lines[i], 0x1F);
+    for (int i = 0; i < num_lines && text_start_row + i < SCREEN_H; i++)
+        draw_centered(text_start_row + i, lines[i], VGA_ATTR(COL_WHITE, COL_CYAN));
 
     int ticker_row = by + num_lines + 1;
-    if (ticker_row >= HEIGHT) ticker_row = HEIGHT - 2;
+    if (ticker_row >= SCREEN_H) ticker_row = SCREEN_H - 2;
 
     for (int cd = 2; cd > 0; cd--)
-        if (countdown_second(ticker_row, 0x1E, 0x1F, "Sleeping in ", cd))
+        if (countdown_second(ticker_row, VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_WHITE, COL_CYAN), "Sleeping in ", cd))
             { ui_draw(); return; }
 
     /* Fade out */
     for (int fade = 0; fade < 8; fade++) {
-        for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                unsigned char base = (unsigned char)(0x10 + (y / 5));
-                if (base > 0x1F) base = 0x1F;
+        for (int y = 0; y < SCREEN_H; y++) {
+            for (int x = 0; x < SCREEN_W; x++) {
+                unsigned char base = (unsigned char)(VGA_ATTR(COL_BLACK, COL_CYAN) + (y / 5));
+                if (base > VGA_ATTR(COL_WHITE, COL_CYAN)) base = VGA_ATTR(COL_WHITE, COL_CYAN);
                 unsigned char fg = base & 0x0F;
                 fg = (fg > (unsigned char)fade) ? fg - (unsigned char)fade : 0;
                 vga_putcell(x, y, ' ', (base & 0xF0) | fg);
             }
         }
         if (fade < 5) {
-            int sbx = (WIDTH - 20) / 2, sby = HEIGHT / 2 - 1;
-            draw_box(sbx, sby, 20, 3, " SLEEPY ", 0x1F - fade, 0x1E - fade, 0x10);
-            draw_centered(sby + 1, "Zzz...", 0x1F - fade);
+            int sbx = (SCREEN_W - 20) / 2, sby = SCREEN_H / 2 - 1;
+            draw_box(sbx, sby, 20, 3, " SLEEPY ", (unsigned char)(VGA_ATTR(COL_WHITE, COL_CYAN) - fade), (unsigned char)(VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN) - fade), VGA_ATTR(COL_BLACK, COL_CYAN));
+            draw_centered(sby + 1, "Zzz...", (unsigned char)(VGA_ATTR(COL_WHITE, COL_CYAN) - fade));
         }
         for (volatile int i = 0; i < 3000000; i++);
     }
 
-    /* True sleep: blank screen then HLT — wake on any keypress */
-    vga_clear();
-    for (int y = 0; y < HEIGHT; y++)
-        for (int x = 0; x < WIDTH; x++) vga_putcell(x, y, ' ', 0x00);
-    {
-        int sbx = (WIDTH - 10) / 2, sby = HEIGHT / 2 - 1;
-        draw_box(sbx, sby, 10, 3, "", ATTR_BORDER, ATTR_BORDER, VGA_ATTR(COL_BLACK, COL_BLACK));
-        draw_centered(sby + 1, "Zzz", ATTR_BORDER);
-    }
-
-    /* HLT: CPU sleeps until the next interrupt (keyboard generates IRQ1).
-     * We don't need to re-enable interrupts before HLT because GRUB leaves
-     * them enabled; this is safe as long as the IDT is in place. */
-    u8 wake_key = 0;
-    while (!wake_key) {
-        __asm__ volatile ("hlt");
-        wake_key = kb_read_scancode();
-    }
+    /* Animated sleep-mode screensaver; wake on any keypress. */
+    (void)run_sleep_screensaver();
 
     /* Fade back in */
     for (int bright = 1; bright <= 5; bright++) {
-        for (int y = 0; y < HEIGHT; y++) {
-            for (int x = 0; x < WIDTH; x++) {
-                unsigned char attr = (unsigned char)(0x10 + (y / 5) + bright);
-                if (attr > 0x1F) attr = 0x1F;
+        for (int y = 0; y < SCREEN_H; y++) {
+            for (int x = 0; x < SCREEN_W; x++) {
+                unsigned char attr = (unsigned char)(VGA_ATTR(COL_BLACK, COL_CYAN) + (y / 5) + bright);
+                if (attr > VGA_ATTR(COL_WHITE, COL_CYAN)) attr = VGA_ATTR(COL_WHITE, COL_CYAN);
                 vga_putcell(x, y, ' ', attr);
             }
         }
-        int wbx = (WIDTH - 20) / 2, wby = (HEIGHT - 5) / 2;
-        draw_box(wbx, wby, 20, 5, " WAKEY WAKEY ", 0x1F, 0x1E, 0x10);
-        draw_centered(wby + 1, "Good morning!", 0x1F);
-        draw_centered(wby + 2, "System waking up...", 0x1E);
+        int wbx = (SCREEN_W - 20) / 2, wby = (SCREEN_H - 5) / 2;
+        draw_box(wbx, wby, 20, 5, " WAKEY WAKEY ", VGA_ATTR(COL_WHITE, COL_CYAN), VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN), VGA_ATTR(COL_BLACK, COL_CYAN));
+        draw_centered(wby + 1, "Good morning!", VGA_ATTR(COL_WHITE, COL_CYAN));
+        draw_centered(wby + 2, "System waking up...", VGA_ATTR(COL_LIGHT_CYAN, COL_CYAN));
         for (volatile int i = 0; i < 2000000; i++);
     }
 

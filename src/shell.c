@@ -24,8 +24,8 @@
 #define MAX_CMD_LEN      64
 #define CMD_PANEL_H      6
 #define CMD_PANEL_Y      (HEIGHT - CMD_PANEL_H)
-#define CMD_TEXT_ATTR    VGA_ATTR(COL_BLACK, COL_LIGHT_GREY)
-#define CMD_HINT_ATTR    VGA_ATTR(COL_BLUE,  COL_LIGHT_GREY)
+#define CMD_TEXT_ATTR    ATTR_PROMPT
+#define CMD_HINT_ATTR    ATTR_BORDER
 
 static char cmd_history[CMD_HISTORY_SIZE][MAX_CMD_LEN];
 static int  history_count = 0;
@@ -89,7 +89,7 @@ static int cmd_help(const char* args, int* mode, int* explorer_sel) {
     int num_lines = (int)(sizeof(help_text) / sizeof(help_text[0]));
     for (int i = 0; i < num_lines; i++) {
         for (int j = 0; help_text[i][j]; j++)
-            vga_putcell(2 + j, 2 + i, help_text[i][j], 0x0F);
+            vga_putcell(2 + j, 2 + i, help_text[i][j], ATTR_NORMAL);
     }
     wait_key();
     ui_draw();
@@ -130,9 +130,9 @@ static int cmd_cat(const char* args, int* mode, int* explorer_sel) {
             for (int j = 0; prefix[j]; j++) title[pos++] = prefix[j];
             for (int j = 0; args[j] && pos < WIDTH - 2; j++) title[pos++] = args[j];
             title[pos] = '\0';
-            for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
+            for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
             for (int j = 0; title[j] && j < WIDTH - 2; ++j)
-                vga_putcell(1 + j, 0, title[j], 0x1F);
+                vga_putcell(1 + j, 0, title[j], ATTR_TITLE);
 
             /* Content */
             int line = 2, col = 1;
@@ -141,13 +141,13 @@ static int cmd_cat(const char* args, int* mode, int* explorer_sel) {
                 if (ch == '\n') { line++; col = 1; }
                 else if (ch == '\t') { col += 4; if (col >= WIDTH) col = WIDTH - 1; }
                 else if (ch >= 32 && ch <= 126 && col < WIDTH - 1)
-                    vga_putcell(col++, line, ch, 0x07);
+                    vga_putcell(col++, line, ch, ATTR_NORMAL);
             }
 
             /* Footer */
             const char* footer = "Press any key to return...";
             for (int j = 0; footer[j]; ++j)
-                vga_putcell(1 + j, HEIGHT - 1, footer[j], 0x0E);
+                vga_putcell(1 + j, HEIGHT - 1, footer[j], ATTR_PROMPT);
 
             wait_key();
             ui_draw();
@@ -307,7 +307,7 @@ static int cmd_calc(const char* args, int* mode, int* explorer_sel) {
     int p = 0;
     for (int i = 0; prefix[i] && p < (int)sizeof(msg) - 1; ++i) msg[p++] = prefix[i];
     int_to_dec(&msg[p], result);
-    show_message(msg, 0x0A);
+    show_message(msg, ATTR_SUCCESS);
     return 1;
 }
 
@@ -316,7 +316,7 @@ static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
     vga_clear();
     const char* title = "Keyboard Tester - press keys (ESC to exit)";
-    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
     while (1) {
         int k = read_key();
         for (volatile int i = 0; i < 500000; ++i) asm volatile("nop");
@@ -327,8 +327,8 @@ static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
         int sc = input_get_last_scancode();
         int lk = input_get_last_key();
         /* Clear status lines */
-        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 2, ' ', 0x07);
-        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 3, ' ', 0x07);
+        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 2, ' ', ATTR_NORMAL);
+        for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, 3, ' ', ATTR_NORMAL);
         char buf[64]; int p = 0;
         /* Show raw scancode */
         const char* s1 = "Last scancode: ";
@@ -341,7 +341,7 @@ static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
             for (int i = d - 1; i >= 0; --i) buf[p++] = digs[i];
         }
         buf[p] = '\0';
-        for (int i = 0; buf[i]; ++i) vga_putcell(1 + i, 2, buf[i], 0x0F);
+        for (int i = 0; buf[i]; ++i) vga_putcell(1 + i, 2, buf[i], ATTR_PROMPT);
 
         /* Show translated key */
         char buf2[64]; int q = 0;
@@ -353,7 +353,7 @@ static int cmd_kbdtest(const char* args, int* mode, int* explorer_sel) {
         else if (lk == K_ARROW_DOWN) { buf2[q++] = 'v'; buf2[q++] = 'D'; }
         else if (lk == 0) { buf2[q++] = '-'; }
         buf2[q] = '\0';
-        for (int i = 0; buf2[i]; ++i) vga_putcell(1 + i, 3, buf2[i], 0x0F);
+        for (int i = 0; buf2[i]; ++i) vga_putcell(1 + i, 3, buf2[i], ATTR_PROMPT);
 
         if (k == K_ESC) break;
     }
@@ -399,7 +399,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
     };
     int num_lines = 18;
     for (int i = 0; i < num_lines; i++) {
-        unsigned char color = (i < 2) ? 0x0E : 0x07;
+        unsigned char color = (i < 2) ? ATTR_PROMPT : ATTR_NORMAL;
         for (int j = 0; info_lines[i][j]; j++)
             vga_putcell(2 + j, 2 + i, info_lines[i][j], color);
     }
@@ -411,7 +411,7 @@ static int cmd_info(const char* args, int* mode, int* explorer_sel) {
 static int cmd_exit(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
     /* Return to file browser — no-op since shell_loop will redraw after return */
-    show_message("Returned to file browser", 0x0A);
+    show_message("Returned to file browser", ATTR_SUCCESS);
     return 1;
 }
 
@@ -439,7 +439,7 @@ static int cmd_mkdir(const char* args, int* mode, int* explorer_sel) {
     name[i] = '\0';
     if (kstrlen(name) == 0) { show_error("Usage: mkdir <name>"); return 0; }
     int r = fs_mkdir(name);
-    if (r == FS_OK) { show_message("Directory created", 0x0A); ui_draw(); return 1; }
+    if (r == FS_OK) { show_message("Directory created", ATTR_SUCCESS); ui_draw(); return 1; }
     if (r == FS_ERR_EXISTS)  show_error("Directory already exists");
     else if (r == FS_ERR_NOSPACE) show_error("No space for directory");
     else show_error("mkdir failed");
@@ -454,7 +454,7 @@ static int cmd_rmdir(const char* args, int* mode, int* explorer_sel) {
     name[i] = '\0';
     if (kstrlen(name) == 0) { show_error("Usage: rmdir <name>"); return 0; }
     int r = fs_rmdir(name);
-    if (r == FS_OK) { show_message("Directory removed", 0x0A); ui_draw(); return 1; }
+    if (r == FS_OK) { show_message("Directory removed", ATTR_SUCCESS); ui_draw(); return 1; }
     if (r == FS_ERR_DIRNOTEMPTY) show_error("Directory not empty");
     else if (r == FS_ERR_NOTFOUND) show_error("Directory not found");
     else show_error("rmdir failed");
@@ -473,7 +473,7 @@ static int cmd_new(const char* args, int* mode, int* explorer_sel) {
     if (args[i] >= '0' && args[i] <= '3') t = args[i] - '0';
     if (kstrlen(name) == 0 || t < 0) { show_error("Usage: new <name> <type:0-2>"); return 0; }
     int r = fs_create(name, (u8)t);
-    if (r == FS_OK) { show_message("File created", 0x0A); ui_draw(); return 1; }
+    if (r == FS_OK) { show_message("File created", ATTR_SUCCESS); ui_draw(); return 1; }
     if (r == FS_ERR_EXISTS) show_error("File already exists");
     else if (r == FS_ERR_NOSPACE) show_error("No space for file");
     else show_error("Failed to create file");
@@ -499,7 +499,7 @@ static int cmd_del(const char* args, int* mode, int* explorer_sel) {
     (void)mode; (void)explorer_sel;
     if (!args || !args[0]) { show_error("Usage: del <name>"); return 0; }
     int r = fs_delete(args);
-    if (r == FS_OK) { show_message("File deleted", 0x0A); ui_draw(); return 1; }
+    if (r == FS_OK) { show_message("File deleted", ATTR_SUCCESS); ui_draw(); return 1; }
     if (r == FS_ERR_NOTFOUND) show_error("File not found");
     else if (r == FS_ERR_RDONLY) show_error("File is read-only");
     else show_error("Failed to delete file");
@@ -510,7 +510,7 @@ static int cmd_pwd(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
     char path[128];
     fs_pwd(path, sizeof(path));
-    show_message(path, 0x0F);
+    show_message(path, ATTR_PROMPT);
     return 1;
 }
 
@@ -549,7 +549,7 @@ static int cmd_touch(const char* args, int* mode, int* explorer_sel) {
     if (!name[0]) { show_error("Usage: touch <file>"); return 0; }
 
     int r = fs_create(name, FILE_TEXT);
-    if (r == FS_OK) { show_message("File created", 0x0A); ui_draw(); return 1; }
+    if (r == FS_OK) { show_message("File created", ATTR_SUCCESS); ui_draw(); return 1; }
     if (r == FS_ERR_EXISTS) show_error("File already exists");
     else if (r == FS_ERR_NOSPACE) show_error("No space for file");
     else show_error("touch failed");
@@ -577,7 +577,7 @@ static int cmd_cp(const char* args, int* mode, int* explorer_sel) {
     r = fs_write(dst, s->content);
     if (r < 0) { show_error("cp write failed"); return 0; }
 
-    show_message("File copied", 0x0A);
+    show_message("File copied", ATTR_SUCCESS);
     ui_draw();
     return 1;
 }
@@ -601,15 +601,15 @@ static int cmd_mv(const char* args, int* mode, int* explorer_sel) {
     r = fs_delete(src);
     if (r != FS_OK) { show_error("mv delete failed"); return 0; }
 
-    show_message("File moved", 0x0A);
+    show_message("File moved", ATTR_SUCCESS);
     ui_draw();
     return 1;
 }
 
 static int cmd_echo(const char* args, int* mode, int* explorer_sel) {
     (void)mode; (void)explorer_sel;
-    if (!args) { show_message("", 0x0F); return 1; }
-    show_message(args, 0x0F);
+    if (!args) { show_message("", ATTR_NORMAL); return 1; }
+    show_message(args, ATTR_NORMAL);
     return 1;
 }
 
@@ -617,7 +617,7 @@ static int cmd_show_history(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
     vga_clear();
     const char* title = "Command History";
-    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], 0x1F);
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
     int first = (history_count > CMD_HISTORY_SIZE) ? history_count - CMD_HISTORY_SIZE : 0;
     int row = 2;
@@ -631,17 +631,17 @@ static int cmd_show_history(const char* args, int* mode, int* explorer_sel) {
         const char* h = cmd_history[i % CMD_HISTORY_SIZE];
         for (int j = 0; h[j] && p < WIDTH - 2; ++j) line[p++] = h[j];
         line[p] = '\0';
-        for (int j = 0; line[j] && j < WIDTH - 2; ++j) vga_putcell(1 + j, row, line[j], 0x0F);
+        for (int j = 0; line[j] && j < WIDTH - 2; ++j) vga_putcell(1 + j, row, line[j], ATTR_NORMAL);
         row++;
     }
 
     if (history_count == 0) {
         const char* empty = "(no history)";
-        for (int i = 0; empty[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 2, empty[i], 0x08);
+        for (int i = 0; empty[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 2, empty[i], ATTR_BORDER);
     }
 
     const char* footer = "Press any key to continue...";
-    for (int i = 0; footer[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 1, footer[i], 0x0E);
+    for (int i = 0; footer[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, HEIGHT - 1, footer[i], ATTR_PROMPT);
     wait_key();
     ui_draw();
     return 1;
@@ -649,13 +649,13 @@ static int cmd_show_history(const char* args, int* mode, int* explorer_sel) {
 
 static int cmd_uname(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
-    show_message("NoirOS i386", 0x0F);
+    show_message("NoirOS i386", ATTR_PROMPT);
     return 1;
 }
 
 static int cmd_whoami(const char* args, int* mode, int* explorer_sel) {
     (void)args; (void)mode; (void)explorer_sel;
-    show_message("root", 0x0F);
+    show_message("root", ATTR_PROMPT);
     return 1;
 }
 
@@ -712,15 +712,15 @@ static const shell_command_t commands[] = {
  * ================================================================ */
 
 static void show_error(const char* message) {
-    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', ATTR_NORMAL);
     for (int i = 0; message[i] && i < STATUS_COLS; i++) {
-        vga_putcell(1 + i, STATUS_ROW, message[i], 0x0C);
+        vga_putcell(1 + i, STATUS_ROW, message[i], ATTR_ERROR);
     }
     wait_key();
 }
 
 static void show_message(const char* message, unsigned char color) {
-    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', 0x07);
+    for (int x = 1; x < WIDTH - 1; ++x) vga_putcell(x, STATUS_ROW, ' ', ATTR_NORMAL);
     for (int i = 0; message[i] && i < STATUS_COLS; i++)
         vga_putcell(1 + i, STATUS_ROW, message[i], color);
 }

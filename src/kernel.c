@@ -123,7 +123,7 @@ void kernel_main(void) {
             serial_puts(sline);
             /* simple display: two small fields */
             char buf[32]; int p = 0;
-            int x = WIDTH - 24;
+            int x = SCREEN_W - 24;
             for (int i = 0; i < 20; ++i) vga_putcell(x + i, 0, ' ', ATTR_TITLE);
             p = 0;
             /* "SC:NN" */

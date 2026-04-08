@@ -764,8 +764,8 @@ void noirc_run(struct File* f) {
     noirc_append_str(title, &tp, "Running NoirC AST: ", (int)sizeof(title));
     noirc_append_str(title, &tp, f->name, (int)sizeof(title));
 
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', VGA_ATTR(COL_WHITE, COL_BLACK));
-    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], VGA_ATTR(COL_WHITE, COL_BLACK));
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
+    for (int i = 0; title[i] && i < WIDTH - 2; ++i) vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
     out_row = 2;
     noirc_print_line("--- Execution Output ---", ATTR_NOIRC_PROMPT);
@@ -781,7 +781,7 @@ void noirc_run(struct File* f) {
 
     const char* footer = "Press any key to return";
     for (int i = 0; footer[i] && i < WIDTH - 2; ++i)
-        vga_putcell(1 + i, HEIGHT - 2, footer[i], VGA_ATTR(COL_YELLOW, COL_BLACK));
+        vga_putcell(1 + i, HEIGHT - 2, footer[i], ATTR_PROMPT);
 
     wait_key();
     ui_draw();

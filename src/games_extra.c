@@ -13,8 +13,8 @@ static int rnd_int(int max) {
 }
 
 static void draw_title(const char* title, int score, int extra, const char* extra_label) {
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x1F);
-    for (int i = 0; title[i] && i < WIDTH - 1; ++i) vga_putcell(i, 0, title[i], 0x1F);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
+    for (int i = 0; title[i] && i < WIDTH - 1; ++i) vga_putcell(i, 0, title[i], ATTR_TITLE);
 
     char sbuf[24];
     int_to_dec(sbuf, score);
@@ -22,29 +22,29 @@ static void draw_title(const char* title, int score, int extra, const char* extr
     if (col < 0) col = 0;
 
     const char* s = "Score:";
-    for (int i = 0; s[i] && col + i < WIDTH; ++i) vga_putcell(col + i, 0, s[i], 0x1E);
+    for (int i = 0; s[i] && col + i < WIDTH; ++i) vga_putcell(col + i, 0, s[i], ATTR_PROMPT);
     int c2 = col + 7;
-    for (int i = 0; sbuf[i] && c2 + i < WIDTH; ++i) vga_putcell(c2 + i, 0, sbuf[i], 0x1E);
+    for (int i = 0; sbuf[i] && c2 + i < WIDTH; ++i) vga_putcell(c2 + i, 0, sbuf[i], ATTR_PROMPT);
 
     if (extra_label) {
         char ebuf[24];
         int_to_dec(ebuf, extra);
         int p = 0;
         while (extra_label[p] && col + p < WIDTH) {
-            vga_putcell(col + p, 1, extra_label[p], 0x1E);
+            vga_putcell(col + p, 1, extra_label[p], ATTR_PROMPT);
             p++;
         }
         int q = p;
         while (ebuf[q - p] && col + q < WIDTH) {
-            vga_putcell(col + q, 1, ebuf[q - p], 0x1E);
+            vga_putcell(col + q, 1, ebuf[q - p], ATTR_PROMPT);
             q++;
         }
     }
 }
 
 static void draw_footer(const char* msg) {
-    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', 0x17);
-    for (int i = 0; msg[i] && i < WIDTH - 1; ++i) vga_putcell(i, HEIGHT - 1, msg[i], 0x17);
+    for (int x = 0; x < WIDTH; ++x) vga_putcell(x, HEIGHT - 1, ' ', ATTR_VIEWER_TITLE);
+    for (int i = 0; msg[i] && i < WIDTH - 1; ++i) vga_putcell(i, HEIGHT - 1, msg[i], ATTR_VIEWER_TITLE);
 }
 
 static void frame_delay(int speed) {
@@ -145,15 +145,15 @@ restart_pong:
         draw_title("PONG  (A/D or arrows, R restart, ESC quit)", score, lives, "Lives:");
 
         for (int x = 0; x < WIDTH; ++x) {
-            vga_putcell(x, 1, '-', 0x08);
-            vga_putcell(x, HEIGHT - 2, '-', 0x08);
+            vga_putcell(x, 1, '-', ATTR_BORDER);
+            vga_putcell(x, HEIGHT - 2, '-', ATTR_BORDER);
         }
 
-        for (int i = 0; i < paddle_w; ++i) vga_putcell(paddle_x + i, paddle_y, '=', 0x0B);
-        vga_putcell(ball_x, ball_y, 'O', 0x0E);
+        for (int i = 0; i < paddle_w; ++i) vga_putcell(paddle_x + i, paddle_y, '=', ATTR_PROMPT);
+        vga_putcell(ball_x, ball_y, 'O', ATTR_SUCCESS);
 
         if (game_over) {
-            draw_center_message("GAME OVER!  R to restart  ESC to exit", 0x4F);
+            draw_center_message("GAME OVER!  R to restart  ESC to exit", ATTR_ERROR);
             draw_footer("Out of lives. R restart / ESC return.");
         } else {
             draw_footer("Keep the ball alive. R restart / ESC return.");
@@ -220,17 +220,17 @@ restart_dodge:
         vga_clear();
         draw_title("DODGE  (A/D or arrows, R restart, ESC quit)", score, DODGE_MAX_HITS - hits, "HP:");
         for (int x = 0; x < WIDTH; ++x) {
-            vga_putcell(x, 1, '-', 0x08);
-            vga_putcell(x, HEIGHT - 2, '-', 0x08);
+            vga_putcell(x, 1, '-', ATTR_BORDER);
+            vga_putcell(x, HEIGHT - 2, '-', ATTR_BORDER);
         }
 
         for (int i = 0; i < MAX_OBS; ++i) {
-            if (oy[i] >= 2 && oy[i] < HEIGHT - 2) vga_putcell(ox[i], oy[i], '*', 0x0C);
+            if (oy[i] >= 2 && oy[i] < HEIGHT - 2) vga_putcell(ox[i], oy[i], '*', ATTR_ERROR);
         }
 
-        vga_putcell(px, py, 'A', 0x0A);
+        vga_putcell(px, py, 'A', ATTR_PROMPT);
         if (game_over) {
-            draw_center_message("GAME OVER!  R to restart  ESC to exit", 0x4F);
+            draw_center_message("GAME OVER!  R to restart  ESC to exit", ATTR_ERROR);
             draw_footer("Hit limit reached. R restart / ESC return.");
         } else {
             draw_footer("Avoid falling stars. Hit limit: 3. R restart / ESC return.");
@@ -278,14 +278,14 @@ restart_catch:
         vga_clear();
         draw_title("CATCH  (A/D or arrows, R restart, ESC quit)", score, 5 - misses, "Miss:");
         for (int x = 0; x < WIDTH; ++x) {
-            vga_putcell(x, 1, '-', 0x08);
-            vga_putcell(x, HEIGHT - 2, '-', 0x08);
+            vga_putcell(x, 1, '-', ATTR_BORDER);
+            vga_putcell(x, HEIGHT - 2, '-', ATTR_BORDER);
         }
 
-        vga_putcell(fx, fy, '$', 0x0E);
-        for (int i = 0; i < basket_w; ++i) vga_putcell(bx + i, by, '_', 0x0B);
+        vga_putcell(fx, fy, '$', ATTR_SUCCESS);
+        for (int i = 0; i < basket_w; ++i) vga_putcell(bx + i, by, '_', ATTR_PROMPT);
         if (game_over) {
-            draw_center_message("GAME OVER!  R to restart  ESC to exit", 0x4F);
+            draw_center_message("GAME OVER!  R to restart  ESC to exit", ATTR_ERROR);
             draw_footer("5 misses reached. R restart / ESC return.");
         } else {
             draw_footer("Catch the coins. R restart / ESC return.");

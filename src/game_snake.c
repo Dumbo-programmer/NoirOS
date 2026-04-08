@@ -135,34 +135,34 @@ void snake_draw(void) {
         vga_clear();
 
         /* Title bar */
-        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', 0x2F);
+        for (int x = 0; x < WIDTH; ++x) vga_putcell(x, 0, ' ', ATTR_TITLE);
         const char* title = "NoirOS Snake  Arrow keys to move  R restart  ESC to exit";
         for (int i = 0; title[i] && i < WIDTH - 2; ++i)
-            vga_putcell(1 + i, 0, title[i], 0x2F);
+            vga_putcell(1 + i, 0, title[i], ATTR_TITLE);
 
         /* Game border — positioned using named constants, not bare magic numbers */
         draw_box(GAME_ORIGIN_X - 1, GAME_ORIGIN_Y - 1,
-                 GAME_W + 2, GAME_H + 2, "", 0x0E, 0x80, 0x00);
+                 GAME_W + 2, GAME_H + 2, "", ATTR_PROMPT, ATTR_BORDER, ATTR_NORMAL);
         snake_game.needs_redraw = 0;
     }
 
     if (snake_game.has_old_tail) {
         vga_putcell(GAME_ORIGIN_X + snake_game.old_tail.x,
-                    GAME_ORIGIN_Y + snake_game.old_tail.y, ' ', 0x00);
+                    GAME_ORIGIN_Y + snake_game.old_tail.y, ' ', ATTR_NORMAL);
         snake_game.has_old_tail = 0;
     }
 
     /* Snake body */
     for (int i = 0; i < snake_game.length; ++i) {
         char ch   = (i == 0) ? 'O' : 'o';
-        u8   attr = (i == 0) ? 0x0A : 0x02;
+        u8   attr = (i == 0) ? ATTR_PROMPT : ATTR_BORDER;
         vga_putcell(GAME_ORIGIN_X + snake_game.body[i].x,
                     GAME_ORIGIN_Y + snake_game.body[i].y, ch, attr);
     }
 
     /* Food */
     vga_putcell(GAME_ORIGIN_X + snake_game.food.x,
-                GAME_ORIGIN_Y + snake_game.food.y, '*', 0x0C);
+            GAME_ORIGIN_Y + snake_game.food.y, '*', ATTR_ERROR);
 
     /* Score */
     char score_text[32];
@@ -180,14 +180,14 @@ void snake_draw(void) {
     }
     score_text[pos] = '\0';
     for (int i = 0; score_text[i]; ++i)
-        vga_putcell(1 + i, HEIGHT - 1, score_text[i], 0x0F);
+        vga_putcell(1 + i, HEIGHT - 1, score_text[i], ATTR_PROMPT);
 
     /* Game over overlay */
     if (snake_game.game_over) {
         const char* msg = "GAME OVER!  R to restart  ESC to exit";
         int start_x = (WIDTH - kstrlen(msg)) / 2;
         for (int i = 0; msg[i]; ++i)
-            vga_putcell(start_x + i, HEIGHT / 2, msg[i], 0x4F);
+            vga_putcell(start_x + i, HEIGHT / 2, msg[i], ATTR_ERROR);
     }
 }
 

@@ -46,7 +46,7 @@ echo "   ✅ Clickable UI elements"
 echo ""
 
 echo "🚀 To test in QEMU:"
-echo "   qemu-system-i386 -cdrom NoirOS.iso -m 512"
+echo "   qemu-system-i386 -cdrom NoirOS.iso -m 512 -display gtk,zoom-to-fit=on -full-screen"
 echo ""
 echo "🎮 Controls to test:"
 echo "   - Arrow keys: Navigate file list"

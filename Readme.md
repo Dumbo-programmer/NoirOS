@@ -68,11 +68,11 @@
 
 ## Screenshots
 
-![NoirOS Desktop](Images/image.png)
-![File Manager](Images/image2.png)
-![Terminal Emulator](Images/image3.png)
-![Settings Panel](Images/image4.png)
-
+![NoirOS Desktop](Images/image5.png)
+![Snake game](Images/image4.png)
+![Text Editor](Images/image3.png)
+![Sleep mode](Images/image2.png)
+![Boot Screen](Images/image.png)
 ## Build and Run
 
 See [BUILD.md](BUILD.md) for full setup instructions.

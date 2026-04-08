@@ -65,4 +65,4 @@ echo "Created NoirOS.iso"
 
 echo ""
 echo "Build complete!"
-echo "To run: qemu-system-i386 -cdrom NoirOS.iso -m 512"
+echo "To run (big screen): qemu-system-i386 -cdrom NoirOS.iso -m 512 -display gtk,zoom-to-fit=on -full-screen"

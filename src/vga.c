@@ -11,7 +11,7 @@ int SCREEN_W = WIDTH;
 int SCREEN_H = HEIGHT;
 
 static int cursor_x = 0, cursor_y = 0;
-static u8 default_attr = 0x07;
+static u8 default_attr = ATTR_NORMAL;
 
 #define MAX_S_W 200
 #define MAX_S_H 100
@@ -152,8 +152,8 @@ char vga_getcell_char(int x, int y) {
  * @return attribute or 0x07 if out of bounds
  */
 unsigned char vga_getcell_attr(int x, int y) {
-    if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return 0x07;
-    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return 0x07;
+    if (x < 0 || x >= SCREEN_W || y < 0 || y >= SCREEN_H) return ATTR_NORMAL;
+    if (SCREEN_W > MAX_S_W || SCREEN_H > MAX_S_H) return ATTR_NORMAL;
     return (unsigned char)((backbuffer[y * SCREEN_W + x] >> 8) & 0xFF);
 }
 

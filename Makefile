@@ -18,8 +18,11 @@ ISO := NoirOS.iso
 KERNEL_ELF := kernel.elf
 KERNEL_BIN := kernel.bin
 DISK_IMG := noiros_disk.img
+QEMU := qemu-system-i386
+QEMU_DISPLAY := -display gtk,zoom-to-fit=on
+QEMU_RAM := 512
 
-.PHONY: all clean prepare_iso run
+.PHONY: all clean prepare_iso run run-windowed
 
 all: $(KERNEL_ELF) $(KERNEL_BIN) $(ISO)
 
@@ -62,7 +65,10 @@ prepare_disk:
 	fi
 
 run: $(ISO) prepare_disk
-	qemu-system-i386 -boot order=d -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw,if=ide -m 512
+	$(QEMU) -boot order=d -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw,if=ide -m $(QEMU_RAM) $(QEMU_DISPLAY) -full-screen
+
+run-windowed: $(ISO) prepare_disk
+	$(QEMU) -boot order=d -cdrom $(ISO) -drive file=$(DISK_IMG),format=raw,if=ide -m $(QEMU_RAM) $(QEMU_DISPLAY)
 
 clean:
 ifeq ($(OS),Windows_NT)
