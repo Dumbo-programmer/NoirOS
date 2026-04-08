@@ -16,11 +16,11 @@ NoirOS is a simple, educational operating system project. It is designed to help
 ## Demo Video
 
 <video controls autoplay muted loop playsinline preload="metadata" width="900">
-	<source src="../Images/demo.mp4" type="video/mp4">
-	Your browser does not support embedded video. Download it from <a href="../Images/demo.mp4">demo.mp4</a>.
+  <source src="https://raw.githubusercontent.com/Dumbo-programmer/NoirOS/main/Images/demo.mp4" type="video/mp4">
+  Your browser does not support embedded video. Download it from <a href="https://raw.githubusercontent.com/Dumbo-programmer/NoirOS/main/Images/demo.mp4">demo.mp4</a>.
 </video>
 
-<p><strong style="color:#23f0d8;">Tip:</strong> If the video path changes in deployment, use the direct file link above.</p>
+<p><strong style="color:#23f0d8;">Tip:</strong> The video is pulled directly from the GitHub repository to avoid static path 404s.</p>
 
 ## Features
 - Custom kernel written in C and Assembly
@@ -63,16 +63,16 @@ make run
 - `iso/` — ISO image structure
 
 ## Documentation
-- [API Reference](api.md) — Generated summary of module and function documentation.
+- [API Reference](api.html) — Public interfaces and module map.
 ### Module docs
-- [Input](input.md)
-- [Editor](editor.md)
-- [Filesystem](fs.md)
-- [Snake Game](game_snake.md)
-- [Kernel](kernel.md)
-- [Mouse](mouse.md)
-- [Utilities](util.md)
-- [VGA / Drawing](vga.md)
+- [Input](input.html)
+- [Editor](editor.html)
+- [Filesystem](fs.html)
+- [Snake Game](game_snake.html)
+- [Kernel](kernel.html)
+- [Mouse](mouse.html)
+- [Utilities](util.html)
+- [VGA / Drawing](vga.html)
 
 ## License
 NoirOS is released under the MIT License. See the `License` file for details.
