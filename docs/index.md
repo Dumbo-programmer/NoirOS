@@ -63,6 +63,7 @@ make run
 - `iso/` — ISO image structure
 
 ## Documentation
+- [Playground](playground.html) - Try NoirOS commands in your browser.
 - [API Reference](api.html) — Public interfaces and module map.
 ### Module docs
 - [Input](input.html)
