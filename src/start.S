@@ -36,6 +36,7 @@ isr_stub_default:
     pushl $255
     jmp isr_common
 
+MAKE_IRQ_STUB irq0_stub, 32
 MAKE_IRQ_STUB irq1_stub, 33
 MAKE_IRQ_STUB irq12_stub, 44
 

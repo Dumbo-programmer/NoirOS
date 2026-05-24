@@ -16,10 +16,6 @@
 #include "../include/mouse.h"
 
 /* forward declarations of game/editor functions */
-void snake_init(void);
-void snake_update(void);
-void snake_draw(void);
-int snake_handle_key(int key);  /* returns 1 if ESC pressed, 2 if restarted, 0 otherwise */
 
 static int current_mode = MODE_BROWSER;
 
@@ -36,16 +32,19 @@ static int current_mode = MODE_BROWSER;
  * Kernel main loop: initialize subsystems and process events.
  * Handles navigation in browser mode, editor input and the snake game loop.
  */
-void kernel_main(void) {
+void kernel_main(unsigned int magic, unsigned int mboot_addr) {
     /* Initialize debug serial for logging (captured by QEMU -serial stdio) */
     serial_init();
-    memory_init();
+    memory_init(mboot_addr);
     idt_init();
     input_init();
     if (init_mouse()) {
         input_enable_mouse_irq();
     }
     init_filesystem();
+    app_register(&app_editor);
+    app_register(&app_snake);
+
     /* Ensure UI layout matches runtime VGA mode */
     ui_relayout();
     ui_show_boot_loader();
@@ -142,33 +141,27 @@ void kernel_main(void) {
             for (int i = 0; t2[i]; ++i) vga_putcell(x + off + 2 + i, 0, t2[i], ATTR_PROMPT);
         }
 
-        if (current_mode == MODE_BROWSER) {
-            /* Delegate browser/key handling to shell_loop which consumes the key `k`. */
-            explorer_sel = shell_loop(explorer_sel, &current_mode, k);
-        } else if (current_mode == MODE_EDITOR) {
-            editor_handle_key(k, &current_mode);
-            if (current_mode != MODE_EDITOR) ui_draw();
-        } else if (current_mode == MODE_GAME) {
-            int sh = snake_handle_key(k);
-            if (sh == 1) {
-                /* ESC pressed — return to browser */
-                current_mode = MODE_BROWSER;
-                game_timer   = 0;
-                input_reset_modifiers();
-                ui_draw();
-                continue;
-            } else if (sh == 2) {
-                /* Restart requested — reset timer and redraw immediately */
-                game_timer = 0;
-                snake_draw();
-                continue;
-            } else {
-                game_timer++;
-                if (game_timer >= game_speed) {
+        sys_app_t* act = app_get_active();
+        if (act) {
+            if (k) {
+                int status = app_active_handle_key(k);
+                if (status == APP_STATUS_EXIT) {
+                    input_reset_modifiers();
+                    ui_draw();
+                    continue;
+                } else if (status == APP_STATUS_RESTART) {
                     game_timer = 0;
-                    snake_update();
-                    snake_draw();
                 }
+            }
+            game_timer++;
+            if (game_timer >= game_speed) {
+                game_timer = 0;
+                app_active_update();
+                app_active_draw();
+            }
+        } else {
+            if (current_mode == MODE_BROWSER) {
+                explorer_sel = shell_loop(explorer_sel, &current_mode, k);
             }
         }
 

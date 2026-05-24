@@ -19,6 +19,7 @@ typedef struct {
 } __attribute__((packed)) idt_ptr_t;
 
 extern void isr_stub_default(void);
+extern void irq0_stub(void);
 extern void irq1_stub(void);
 extern void irq12_stub(void);
 
@@ -89,14 +90,22 @@ static void pic_send_eoi(u8 irq) {
     io_out8(0x20, 0x20);
 }
 
-void isr_dispatch_c(isr_frame_t* frame) {
-    if (!frame) return;
+#include "../include/task.h"
+
+u32 isr_dispatch_c(u32 esp) {
+    isr_frame_t* frame = (isr_frame_t*)esp;
+    if (!frame) return esp;
 
     if (frame->int_no >= IRQ_BASE && frame->int_no < IRQ_BASE + 16) {
         u8 irq = (u8)(frame->int_no - IRQ_BASE);
         if (irq_handlers[irq]) irq_handlers[irq](frame);
         pic_send_eoi(irq);
-        return;
+        
+        /* If it's the PIT timer, do context switch */
+        if (irq == 0) {
+            return task_switch(esp);
+        }
+        return esp;
     }
 
     if (frame->int_no < 32) {
@@ -105,6 +114,7 @@ void isr_dispatch_c(isr_frame_t* frame) {
             io_hlt();
         }
     }
+    return esp;
 }
 
 void idt_init(void) {
@@ -117,6 +127,7 @@ void idt_init(void) {
         idt_set_gate((u8)i, (u32)isr_stub_default, kernel_cs, 0x8E);
     }
 
+    idt_set_gate(IRQ_BASE + 0, (u32)irq0_stub, kernel_cs, 0x8E);
     idt_set_gate(IRQ_BASE + 1, (u32)irq1_stub, kernel_cs, 0x8E);
     idt_set_gate(IRQ_BASE + 12, (u32)irq12_stub, kernel_cs, 0x8E);
 
@@ -127,6 +138,14 @@ void idt_init(void) {
     pic_remap();
 
     for (u8 i = 0; i < 16; ++i) pic_set_mask(i);
+    
+    /* Config PIT Timer for 100hz */
+    u32 divisor = 1193180 / 100;
+    io_out8(0x43, 0x36);
+    io_out8(0x40, (u8)(divisor & 0xFF));
+    io_out8(0x40, (u8)((divisor >> 8) & 0xFF));
+    
+    pic_clear_mask(0); /* Enable PIT IRQ0 */
 
     io_sti();
 }

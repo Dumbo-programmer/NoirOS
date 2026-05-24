@@ -3,7 +3,7 @@
 
 #include "common.h"
 
-void memory_init(void);
+void memory_init(u32 mboot_addr);
 void paging_enable_identity(void);
 void* kmalloc(u32 size);
 void  kfree(void* ptr);

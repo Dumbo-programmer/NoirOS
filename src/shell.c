@@ -103,14 +103,14 @@ static int cmd_list(const char* args, int* mode, int* explorer_sel) {
 }
 
 static int cmd_edit(const char* args, int* mode, int* explorer_sel) {
-    (void)explorer_sel;
+    (void)explorer_sel; (void)mode; (void)mode; (void)mode;
     if (!args || !args[0]) { show_error("Usage: edit <filename>"); return 0; }  
     struct File* f = fs_find(args);
     if (f && f->readonly) {
         show_error("File is read-only and cannot be opened");
         return 0;
     }
-    editor_open(args, mode);
+    app_launch("editor", args);
     return 1;
 }
 
@@ -159,10 +159,8 @@ static int cmd_cat(const char* args, int* mode, int* explorer_sel) {
 }
 
 static int cmd_snake(const char* args, int* mode, int* explorer_sel) {
-    (void)args; (void)explorer_sel;
-    *mode = MODE_GAME;
-    snake_init();
-    snake_draw();
+    (void)args; (void)explorer_sel; (void)mode;
+    app_launch("snake", 0);
     return 1;
 }
 

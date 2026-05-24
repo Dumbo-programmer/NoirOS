@@ -194,22 +194,34 @@ void snake_draw(void) {
 /**
  * Handle a key event while in the snake game.
  * Updates direction or ignores invalid reversals.
- * Returns 1 if the caller should switch back to MODE_BROWSER (ESC pressed).
+ * Returns APP_STATUS_*
  * @param k key value from read_key()
  */
 int snake_handle_key(int k) {
-    if (k == K_ESC) return 1;   /* signal caller to exit game mode */
+    if (k == K_ESC) return APP_STATUS_EXIT;   /* signal caller to exit game mode */
     /* R or r: restart the game at any time (including after game over) */
     if (k == 'r' || k == 'R') {
-        snake_init();
-        snake_draw();
-        return 2; /* restarted */
+        return APP_STATUS_RESTART; /* caller handles restart */
     }
-    if (snake_game.game_over) return 0;
+    if (snake_game.game_over) return APP_STATUS_RUNNING;
     /* Prevent reversing directly into the body */
     if (k == K_ARROW_UP    && snake_game.dy == 0) { snake_game.dx = 0; snake_game.dy = -1; }
     else if (k == K_ARROW_DOWN  && snake_game.dy == 0) { snake_game.dx = 0; snake_game.dy =  1; }
     else if (k == K_ARROW_LEFT  && snake_game.dx == 0) { snake_game.dx = -1; snake_game.dy = 0; }
     else if (k == K_ARROW_RIGHT && snake_game.dx == 0) { snake_game.dx =  1; snake_game.dy = 0; }
-    return 0;
+    return APP_STATUS_RUNNING;
 }
+
+static void app_snake_init(const char* args) {
+    (void)args;
+    snake_init();
+    snake_draw();
+}
+
+sys_app_t app_snake = {
+    "snake",
+    app_snake_init,
+    snake_update,
+    snake_draw,
+    snake_handle_key
+};

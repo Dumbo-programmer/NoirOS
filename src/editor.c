@@ -266,7 +266,7 @@ void editor_draw(void) {
 }
 
 /* ---- Open ---- */
-void editor_open(const char* fname, int* mode) {
+void editor_open(const char* fname) {
     int idx = -1;
     for (int i = 0; i < fs_count(); ++i) {
         if (kstrcmp(fs_get(i)->name, fname) == 0) { idx = i; break; }
@@ -291,19 +291,23 @@ void editor_open(const char* fname, int* mode) {
     if (editor_readonly) set_status("Read-only file", ATTR_ERROR);
     else set_status("Ready", ATTR_PROMPT);
 
-    *mode = MODE_EDITOR;
     editor_draw();
 }
 
+static void app_editor_init(const char* args) {
+    editor_open(args);
+}
+
+
 /* ---- Key handler ---- */
-void editor_handle_key(int key, int* mode) {
-    if (key == 0) return;
+int editor_handle_key(int key) {
+    if (key == 0) return APP_STATUS_RUNNING;
 
     /* Save */
     if (key == CTRL_S || key == K_F2) {
         editor_save();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     /* Save + Exit */
@@ -311,22 +315,20 @@ void editor_handle_key(int key, int* mode) {
         if (!editor_readonly && editor_modified) editor_save();
         if (!editor_modified || editor_readonly) {
             editor_file_index = -1;
-            *mode = MODE_BROWSER;
-            return;
+            return APP_STATUS_EXIT;
         }
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     /* Exit */
     if (key == CTRL_Q || key == K_ESC) {
         if (prompt_discard_or_save()) {
             editor_file_index = -1;
-            *mode = MODE_BROWSER;
-            return;
+            return APP_STATUS_EXIT;
         }
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     /* Navigation */
@@ -341,7 +343,7 @@ void editor_handle_key(int key, int* mode) {
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_ARROW_RIGHT) {
@@ -356,7 +358,7 @@ void editor_handle_key(int key, int* mode) {
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_ARROW_UP) {
@@ -367,7 +369,7 @@ void editor_handle_key(int key, int* mode) {
         else editor_cursor_col = editor_desired_col;
         ensure_cursor_visible();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_ARROW_DOWN) {
@@ -379,14 +381,14 @@ void editor_handle_key(int key, int* mode) {
         else editor_cursor_col = editor_desired_col;
         ensure_cursor_visible();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_HOME) {
         editor_cursor_col = 0;
         editor_desired_col = 0;
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_END) {
@@ -394,7 +396,7 @@ void editor_handle_key(int key, int* mode) {
         editor_cursor_col = get_line_length_at_off(off);
         editor_desired_col = editor_cursor_col;
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_PAGE_UP) {
@@ -406,7 +408,7 @@ void editor_handle_key(int key, int* mode) {
         if (editor_cursor_col > ll) editor_cursor_col = ll;
         editor_desired_col = editor_cursor_col;
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_PAGE_DOWN) {
@@ -421,7 +423,7 @@ void editor_handle_key(int key, int* mode) {
         editor_desired_col = editor_cursor_col;
         ensure_cursor_visible();
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     /* Read-only guard for editing actions */
@@ -429,7 +431,7 @@ void editor_handle_key(int key, int* mode) {
         if (key == '\b' || key == K_DEL || key == '\n' || key == '\r' || key == '\t' || (key >= 32 && key <= 126)) {
             set_status("Read-only file", ATTR_ERROR);
             editor_draw();
-            return;
+            return APP_STATUS_RUNNING;
         }
     }
 
@@ -444,7 +446,7 @@ void editor_handle_key(int key, int* mode) {
             set_status("Edited", ATTR_PROMPT);
         }
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == K_DEL) {
@@ -454,7 +456,7 @@ void editor_handle_key(int key, int* mode) {
             set_status("Edited", ATTR_PROMPT);
         }
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == '\n' || key == '\r') {
@@ -465,7 +467,7 @@ void editor_handle_key(int key, int* mode) {
         ensure_cursor_visible();
         set_status("Edited", ATTR_PROMPT);
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key == '\t') {
@@ -476,7 +478,7 @@ void editor_handle_key(int key, int* mode) {
         ensure_cursor_visible();
         set_status("Edited", ATTR_PROMPT);
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
 
     if (key >= 32 && key <= 126) {
@@ -487,9 +489,11 @@ void editor_handle_key(int key, int* mode) {
         ensure_cursor_visible();
         set_status("Edited", ATTR_PROMPT);
         editor_draw();
-        return;
+        return APP_STATUS_RUNNING;
     }
+    return APP_STATUS_RUNNING;
 }
+
 
 #ifdef EDITOR_MOUSE_SUPPORT
 void editor_set_cursor_pos(int x, int y) {
@@ -511,3 +515,5 @@ void editor_set_cursor_pos(int x, int y) {
     editor_draw();
 }
 #endif
+
+sys_app_t app_editor = { "editor", app_editor_init, 0, editor_draw, editor_handle_key };

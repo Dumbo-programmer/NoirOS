@@ -69,6 +69,7 @@ make run
 - [Input](input.html)
 - [Editor](editor.html)
 - [Filesystem](fs.html)
+- [Memory/Paging](memory.html)
 - [Snake Game](game_snake.html)
 - [Kernel](kernel.html)
 - [Mouse](mouse.html)
